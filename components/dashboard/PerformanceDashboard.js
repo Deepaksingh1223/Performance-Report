@@ -1018,7 +1018,7 @@ function CollectionReport() {
 
 function RewardStrip({ league }) {
   return (
-    <div className="flex flex-wrap gap-x-3 gap-y-1.5 rounded-xl bg-[#f5f4f8] px-3 py-2.5 text-[9px] text-[#686477]">
+    <div className="league-reward-strip flex flex-wrap gap-x-3 gap-y-1.5 rounded-xl bg-[#f5f4f8] px-3 py-2.5 text-[9px] text-[#686477]">
       {league.royalty.map(([role, reward]) => (
         <span key={role}>
           {role}: <b className="font-bold text-[#745b91]">{reward}</b>
@@ -1056,7 +1056,7 @@ function ChallengePodium({ league }) {
   ];
 
   return (
-    <div className="grid grid-cols-3 items-stretch gap-2">
+    <div className="league-podium-grid grid grid-cols-3 items-stretch gap-2">
       {places.map((place) => (
         <div
           key={place.label}
@@ -1153,7 +1153,7 @@ function BrandTable({ league }) {
   const hasActiveFilters = Boolean(normalizedSearch) || filter !== "all";
 
   return (
-    <div className="mt-3 overflow-hidden rounded-2xl border border-[#d9e2dc] bg-white shadow-[0_3px_12px_rgba(48,72,55,0.045)]">
+    <div className="league-table-panel mt-3 overflow-hidden rounded-2xl border border-[#d9e2dc] bg-white shadow-[0_3px_12px_rgba(48,72,55,0.045)]">
       <div className="flex flex-col gap-2.5 border-b border-[#dce5de] bg-[#f8faf8] p-3 sm:flex-row sm:items-center">
         <label className="relative min-w-0 flex-1">
           <FiSearch
@@ -1209,7 +1209,7 @@ function BrandTable({ league }) {
           {filteredBrands.length} of {brands.length} brands
         </span>
       </div>
-      <div className="scroll-thin overflow-x-auto">
+      <div className="league-table-scroll scroll-thin overflow-x-auto">
         <table className="w-full min-w-[800px] border-collapse text-left text-[10px]">
           <thead className="bg-[#293e39] text-white">
             <tr>
@@ -1375,7 +1375,7 @@ function ChallengeCard({ league }) {
 
   return (
     <article
-      className={`min-w-0 rounded-[22px] border border-[#e7eae5] border-l-[4px] bg-white p-4 shadow-[0_4px_16px_rgba(20,42,34,0.035)] sm:p-5 ${accent.line}`}
+      className={`league-card min-w-0 rounded-[22px] border border-[#e7eae5] border-l-[4px] bg-white p-4 shadow-[0_4px_16px_rgba(20,42,34,0.035)] sm:p-5 ${accent.line}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
@@ -1442,15 +1442,15 @@ function LeagueStandings() {
           Brand standings below reflect the rows readable in the screen recording.
         </p>
       </div>
-      <div className="grid gap-3 xl:grid-cols-2">
+      <div className="league-card-grid grid min-w-0 gap-3 xl:grid-cols-2">
         {REPORT_SNAPSHOT.challenges.map((league) => (
           <div
             key={league.id}
-            className={
+            className={`min-w-0 ${
               league.id === "challengers" || league.id === "survivors"
                 ? "xl:col-span-2"
                 : ""
-            }
+            }`}
           >
             <ChallengeCard league={league} />
           </div>
@@ -1563,7 +1563,7 @@ function InsightsDialog({ onClose }) {
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-[#10231f]/55 p-0 backdrop-blur-sm sm:items-center sm:p-5"
-      onMouseDown={(event) => {
+      onClick={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
@@ -1573,17 +1573,16 @@ function InsightsDialog({ onClose }) {
         aria-modal="true"
         aria-labelledby="insights-title"
         tabIndex={-1}
+        onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             event.preventDefault();
             onClose();
           }
         }}
-        className="overflow-hidden max-h-[92dvh] w-full
-         max-w-2xl overflow-y-auto rounded-t-[26px] border border-white/70 
-         bg-[#f8faf7] shadow-[0_24px_80px_rgba(9,29,22,0.3)] outline-none sm:rounded-[26px]"
+        className="flex max-h-[92dvh] w-full max-w-2xl touch-pan-y flex-col overflow-y-auto overscroll-contain rounded-t-[26px] border border-white/70 bg-[#f8faf7] shadow-[0_24px_80px_rgba(9,29,22,0.3)] outline-none sm:rounded-[26px]"
       >
-        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-[#e6ebe5] bg-white/95 px-5 py-4 backdrop-blur sm:px-6">
+        <div className="sticky top-0 z-20 flex shrink-0 items-start justify-between gap-4 border-b border-[#e6ebe5] bg-white px-5 py-4 sm:px-6">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#e6f3e9] text-[#34764d]">
               <FiBarChart2 className="size-5" aria-hidden="true" />
@@ -1603,7 +1602,7 @@ function InsightsDialog({ onClose }) {
           <button
             type="button"
             onClick={onClose}
-            className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-[#e3e9e3] bg-white text-[#66746b] transition hover:bg-[#f0f5f0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7aaa87]"
+            className="flex size-11 shrink-0 touch-manipulation items-center justify-center rounded-xl border border-[#e3e9e3] bg-white text-[#66746b] transition hover:bg-[#f0f5f0] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7aaa87]"
             aria-label="Close quick insights"
           >
             <FiX className="size-4" aria-hidden="true" />
