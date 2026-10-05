@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   FiActivity,
   FiAward,
@@ -28,6 +35,43 @@ const amount = (value, digits = 2) =>
 const percent = (value, digits = 2) =>
   `${Number(value).toFixed(digits)}%`;
 
+const REPORT_PERIODS = [
+  {
+    id: "october",
+    label: "October 2026",
+    collectionLabel: "01–04 Oct 2026",
+    collectionField: "current",
+    collectionIndex: 0,
+    isCurrentSnapshot: true,
+  },
+  {
+    id: "september",
+    label: "September 2026",
+    collectionLabel: "September 2026",
+    collectionField: "september",
+    collectionIndex: 1,
+    isCurrentSnapshot: false,
+  },
+  {
+    id: "august",
+    label: "August 2026",
+    collectionLabel: "August 2026",
+    collectionField: "august",
+    collectionIndex: 2,
+    isCurrentSnapshot: false,
+  },
+];
+
+const ReportPeriodContext = createContext(null);
+
+function useReportPeriod() {
+  const context = useContext(ReportPeriodContext);
+  if (!context) {
+    throw new Error("Dashboard components must be inside ReportPeriodContext.");
+  }
+  return context;
+}
+
 function performanceTier(items, item, metric) {
   const values = items
     .map((entry) => entry[metric])
@@ -54,6 +98,56 @@ function PerformanceBadge({ tier }) {
   );
 }
 
+function PeriodPicker({ compact = false }) {
+  const { period, setPeriodId } = useReportPeriod();
+  const containerTone = compact
+    ? "border-white/15 bg-white/[0.08] text-white"
+    : "border-[#d6e0d8] bg-white text-[#46564b]";
+
+  return (
+    <label
+      className={`inline-flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-1.5 ${containerTone}`}
+    >
+      <FiCalendar
+        className={`size-3.5 shrink-0 ${
+          compact ? "text-[#b4dfc4]" : "text-[#74877a]"
+        }`}
+        aria-hidden="true"
+      />
+      <span className="sr-only">Filter dashboard by reporting month</span>
+      <select
+        value={period.id}
+        onChange={(event) => setPeriodId(event.target.value)}
+        className={`min-w-0 cursor-pointer bg-transparent text-[10px] font-bold text-inherit outline-none [&>option]:bg-white [&>option]:text-[#27342e] ${
+          compact ? "max-w-[132px]" : "max-w-[160px]"
+        }`}
+      >
+        {REPORT_PERIODS.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function PeriodUnavailable({ title, detail }) {
+  const { period } = useReportPeriod();
+  return (
+    <div className="flex min-h-36 flex-col items-center justify-center rounded-[20px] border border-dashed border-[#d9e3da] bg-white/75 px-5 py-7 text-center">
+      <span className="flex size-10 items-center justify-center rounded-2xl bg-[#eef3ef] text-[#76877b]">
+        <FiCalendar className="size-4" aria-hidden="true" />
+      </span>
+      <h3 className="mt-3 text-xs font-bold text-[#4a5c50]">{title}</h3>
+      <p className="mt-1 max-w-md text-[10px] leading-relaxed text-[#8b968e]">
+        {detail ??
+          `The supplied recording has no ${period.label} history for this section. No other period's figures are shown.`}
+      </p>
+    </div>
+  );
+}
+
 function LeagueIcon({ id, className }) {
   const icons = {
     legends: FiAward,
@@ -67,6 +161,7 @@ function LeagueIcon({ id, className }) {
 }
 
 function UserTicker() {
+  const { period } = useReportPeriod();
   const repeatedMembers = [
     ...REPORT_SNAPSHOT.liveMembers,
     ...REPORT_SNAPSHOT.liveMembers,
@@ -76,28 +171,42 @@ function UserTicker() {
     <div className="flex h-9 items-center overflow-hidden border-b border-white/10 bg-[#102328] text-[10px]">
       <div className="z-10 flex h-full shrink-0 items-center gap-1.5 bg-[#d5f4e2] px-3 font-black tracking-[0.14em] text-[#286444]">
         <FiRadio className="size-3.5" aria-hidden="true" />
-        RECORDED
-        <span className="rounded-full bg-[#173e31]/10 px-1.5 py-0.5 tracking-normal">
-          {REPORT_SNAPSHOT.currentUsers}
-        </span>
+        {period.isCurrentSnapshot ? (
+          <>
+            RECORDED
+            <span className="rounded-full bg-[#173e31]/10 px-1.5 py-0.5 tracking-normal">
+              {REPORT_SNAPSHOT.currentUsers}
+            </span>
+          </>
+        ) : (
+          "ARCHIVE"
+        )}
       </div>
-      <div className="dashboard-marquee flex min-w-0 items-center whitespace-nowrap">
-        {repeatedMembers.map((member, index) => (
-          <span
-            key={`${member}-${index}`}
-            className="inline-flex items-center gap-2 px-3 font-semibold text-[#e0ebe7]"
-          >
-            <span className="size-1.5 rounded-full bg-[#83d4ac]" />
-            {member}
-            <span className="text-white/25">|</span>
-          </span>
-        ))}
-      </div>
+      {period.isCurrentSnapshot ? (
+        <div className="dashboard-marquee flex min-w-0 items-center whitespace-nowrap">
+          {repeatedMembers.map((member, index) => (
+            <span
+              key={`${member}-${index}`}
+              className="inline-flex items-center gap-2 px-3 font-semibold text-[#e0ebe7]"
+            >
+              <span className="size-1.5 rounded-full bg-[#83d4ac]" />
+              {member}
+              <span className="text-white/25">|</span>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="truncate px-3 text-[10px] font-medium text-[#d3dfd9]">
+          {period.label} selected · user activity history unavailable
+        </p>
+      )}
     </div>
   );
 }
 
 function Header({ onOpenInsights, insightsTriggerRef }) {
+  const { period } = useReportPeriod();
+
   return (
     <header className="relative z-10 bg-[#244540] shadow-[0_8px_24px_rgba(36,69,64,0.12)]">
       <UserTicker />
@@ -111,11 +220,12 @@ function Header({ onOpenInsights, insightsTriggerRef }) {
               SALES PULSE · COLLECTION PERFORMANCE
             </p>
             <h1 className="text-sm font-bold text-white sm:text-base">
-              October 2026 report
+              {period.label} report
             </h1>
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <PeriodPicker compact />
           <button
             ref={insightsTriggerRef}
             type="button"
@@ -127,18 +237,22 @@ function Header({ onOpenInsights, insightsTriggerRef }) {
             <span className="hidden sm:inline">Quick insights</span>
             <span className="sm:hidden">Insights</span>
           </button>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.07] px-3 py-2 text-[10px] font-semibold text-white/85">
-            <FiCalendar className="size-3.5 text-[#b4dfc4]" aria-hidden="true" />
-            {REPORT_SNAPSHOT.reportDate}
-          </span>
-          <span className="hidden items-center gap-1.5 rounded-full bg-[#d5f4e2] px-3 py-2 text-[10px] font-bold text-[#285d42] sm:inline-flex">
-            <FiUsers className="size-3.5" aria-hidden="true" />
-            {REPORT_SNAPSHOT.currentUsers} current users
-          </span>
-          <span className="hidden items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.07] px-3 py-2 text-[10px] font-semibold text-white/85 md:inline-flex">
-            <FiTrendingUp className="size-3.5 text-[#bdd1f4]" aria-hidden="true" />
-            {REPORT_SNAPSHOT.usersToday} users today
-          </span>
+          {period.isCurrentSnapshot ? (
+            <>
+              <span className="hidden items-center gap-1.5 rounded-full bg-[#d5f4e2] px-3 py-2 text-[10px] font-bold text-[#285d42] sm:inline-flex">
+                <FiUsers className="size-3.5" aria-hidden="true" />
+                {REPORT_SNAPSHOT.currentUsers} current users
+              </span>
+              <span className="hidden items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.07] px-3 py-2 text-[10px] font-semibold text-white/85 md:inline-flex">
+                <FiTrendingUp className="size-3.5 text-[#bdd1f4]" aria-hidden="true" />
+                {REPORT_SNAPSHOT.usersToday} users today
+              </span>
+            </>
+          ) : (
+            <span className="hidden rounded-full border border-white/15 bg-white/[0.07] px-3 py-2 text-[10px] font-semibold text-white/85 md:inline-flex">
+              Data as recorded {REPORT_SNAPSHOT.reportDate}
+            </span>
+          )}
         </div>
       </div>
     </header>
@@ -201,6 +315,17 @@ function LeaguePills() {
 }
 
 function MissionHero() {
+  const { period } = useReportPeriod();
+  if (!period.isCurrentSnapshot) {
+    return (
+      <section className="rounded-[26px] border border-[#e7ebe6] bg-white p-4 shadow-[0_8px_28px_rgba(20,42,34,0.04)] sm:p-6">
+        <PeriodUnavailable
+          title={`Monthly mission · ${period.label}`}
+          detail={`Mission target and achieved totals are available only for the ${REPORT_SNAPSHOT.mission.label} snapshot.`}
+        />
+      </section>
+    );
+  }
   const { mission } = REPORT_SNAPSHOT;
   const progress = Math.min((mission.achieved / mission.target) * 100, 100);
   const daysProgress = (mission.daysElapsed / mission.daysInMonth) * 100;
@@ -212,10 +337,10 @@ function MissionHero() {
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#e8f3ed] px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.1em] text-[#337452]">
               <FiZap className="size-3" aria-hidden="true" />
-              October leaderboard
+              {period.label} leaderboard
             </span>
             <span className="text-[10px] font-medium text-[#909994]">
-              {mission.label}
+              {period.label}
             </span>
           </div>
           <p className="mt-6 text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#929b96]">
@@ -285,6 +410,23 @@ function MissionHero() {
 }
 
 function Overview() {
+  const { period } = useReportPeriod();
+  if (!period.isCurrentSnapshot) {
+    return (
+      <section className="space-y-3">
+        <PageHeading
+          number="01"
+          eyebrow="At a glance"
+          title="Collection health"
+          detail="This report section only has the October 2026 snapshot."
+        />
+        <PeriodUnavailable
+          title={`Collection health · ${period.label}`}
+          detail="Company target, achieved MTD, milestone targets and league counts are not recorded for this month."
+        />
+      </section>
+    );
+  }
   const { overall } = REPORT_SNAPSHOT;
   const stats = [
     {
@@ -671,6 +813,23 @@ function TeamLeadershipCard({ team, index }) {
 }
 
 function TeamRace() {
+  const { period } = useReportPeriod();
+  if (!period.isCurrentSnapshot) {
+    return (
+      <section id="team-race" className="scroll-mt-48 space-y-3">
+        <PageHeading
+          number="02"
+          eyebrow="Friendly competition"
+          title="Team lap race"
+          detail="Team score, lap targets and collection progress."
+        />
+        <PeriodUnavailable
+          title={`Team lap race · ${period.label}`}
+          detail="Team scores, targets and member race points are available only in the October 2026 snapshot."
+        />
+      </section>
+    );
+  }
   return (
     <section id="team-race" className="scroll-mt-48 space-y-3">
       <PageHeading
@@ -826,6 +985,23 @@ function PerformerCard({ performer, index, groupLabel, tier }) {
 }
 
 function TeamPerformers() {
+  const { period } = useReportPeriod();
+  if (!period.isCurrentSnapshot) {
+    return (
+      <section id="performers" className="scroll-mt-48 space-y-3">
+        <PageHeading
+          number="03"
+          eyebrow="Team collection performers"
+          title="Team members & collection"
+          detail="Team-wise members, visible brand percentages, targets and achieved totals."
+        />
+        <PeriodUnavailable
+          title={`Team performers · ${period.label}`}
+          detail="Team performer targets and achieved totals are available only in the October 2026 snapshot."
+        />
+      </section>
+    );
+  }
   return (
     <section id="performers" className="scroll-mt-48 space-y-3">
       <PageHeading
@@ -883,39 +1059,36 @@ function LeaderScore({ race }) {
   );
 }
 
-function MonthMetrics({ values, label, color }) {
+function MonthMetrics({ value, label, color }) {
   return (
-    <div className="grid grid-cols-[minmax(72px,1fr)_repeat(3,minmax(0,auto))] items-center gap-x-2 rounded-xl bg-white px-2.5 py-2.5">
+    <div className="grid grid-cols-[minmax(72px,1fr)_minmax(0,auto)] items-center gap-x-2 rounded-xl bg-white px-2.5 py-2.5">
       <span className="text-[9px] font-semibold text-[#717c75]">{label}</span>
-      {values.map((value, index) => (
-        <span
-          key={`${label}-${index}`}
-          className={`whitespace-nowrap text-right text-[9px] font-bold tabular-nums sm:text-[10px] ${color}`}
-        >
-          {label === "Collect %"
-            ? percent(value)
-            : amount(value)}
-        </span>
-      ))}
+      <span
+        className={`whitespace-nowrap text-right text-[9px] font-bold tabular-nums sm:text-[10px] ${color}`}
+      >
+        {label === "Collect %" ? percent(value) : amount(value)}
+      </span>
     </div>
   );
 }
 
-function CollectionPersonCard({ leader, index, tier }) {
+function CollectionPersonCard({ leader, index, tier, period }) {
+  const monthIndex = period.collectionIndex;
+  const achievement = leader.monthly.collectPercent[monthIndex];
   const rows = [
     {
       label: "Repay Amt.",
-      values: leader.monthly.repay,
+      value: leader.monthly.repay[monthIndex],
       color: "text-[#a5682a]",
     },
     {
       label: "Received Amt.",
-      values: leader.monthly.received,
+      value: leader.monthly.received[monthIndex],
       color: "text-[#2e8363]",
     },
     {
       label: "Collect %",
-      values: leader.monthly.collectPercent,
+      value: achievement,
       color: "text-[#ae4f45]",
     },
   ];
@@ -936,7 +1109,8 @@ function CollectionPersonCard({ leader, index, tier }) {
             {leader.name}
           </p>
           <p className="mt-1 text-[9px] text-[#87918b]">
-            Collection rank {index + 1} · {leader.count} members
+            Collection rank {index + 1}
+            {period.isCurrentSnapshot ? ` · ${leader.count} members` : ""}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
@@ -948,26 +1122,25 @@ function CollectionPersonCard({ leader, index, tier }) {
                 ? "bg-[#fff0e9] text-[#a26042]"
                 : "bg-[#f1f4ed] text-[#4d7552]"
           }`}>
-            {percent(leader.achievement)}
+            {percent(achievement)}
           </span>
         </div>
       </div>
-      <div className="my-3 flex flex-wrap gap-1">
-        {leader.brands.map(([brand, value]) => (
-          <BrandChip key={brand} brand={brand} value={value} />
-        ))}
-      </div>
-      <div className="mb-1 grid grid-cols-[minmax(72px,1fr)_repeat(3,minmax(0,auto))] gap-x-2 px-2.5 text-[8px] font-extrabold tracking-wide text-[#a0a8a2]">
-        <span />
-        <span>OCT</span>
-        <span>SEP</span>
-        <span>AUG</span>
-      </div>
+      {period.isCurrentSnapshot && (
+        <div className="my-3 flex flex-wrap gap-1">
+          {leader.brands.map(([brand, value]) => (
+            <BrandChip key={brand} brand={brand} value={value} />
+          ))}
+        </div>
+      )}
+      <p className="mb-1 px-2.5 text-[8px] font-extrabold tracking-wide text-[#a0a8a2]">
+        {period.label.toUpperCase()}
+      </p>
       <div className="space-y-1.5">
         {rows.map((row) => (
           <MonthMetrics
             key={row.label}
-            values={row.values}
+            value={row.value}
             label={row.label}
             color={row.color}
           />
@@ -978,37 +1151,65 @@ function CollectionPersonCard({ leader, index, tier }) {
 }
 
 function CollectionReport() {
+  const { period } = useReportPeriod();
   const { collectionRaces, collectionLeaders } = REPORT_SNAPSHOT;
+  const sortedLeaders = [...collectionLeaders].sort(
+    (first, second) =>
+      second.monthly.collectPercent[period.collectionIndex] -
+      first.monthly.collectPercent[period.collectionIndex]
+  );
 
   return (
     <section id="collections" className="scroll-mt-48 space-y-3">
       <PageHeading
         number="04"
         eyebrow="Repayment · received · collection"
-        title="3-month collection report"
-        detail="CBH and CCH race, followed by performer-level October, September and August results."
+        title={
+          period.isCurrentSnapshot
+            ? "3-month collection report"
+            : `${period.label} collection report`
+        }
+        detail={
+          period.isCurrentSnapshot
+            ? "CBH and CCH race, followed by performer-level October, September and August results."
+            : `Repayment, received amount and collection percentage for ${period.label}.`
+        }
       />
-      <div className="grid gap-2.5 xl:grid-cols-2">
-        {collectionRaces.map((race) =>
-          race.rival ? (
-            <MatchScore
-              key={race.id}
-              left={{ name: race.leader, score: race.score }}
-              right={{ name: race.rival, score: race.rivalScore }}
-              days={race.days}
-            />
-          ) : (
-            <LeaderScore key={race.id} race={race} />
-          )
-        )}
-      </div>
+      {period.isCurrentSnapshot ? (
+        <div className="grid gap-2.5 xl:grid-cols-2">
+          {collectionRaces.map((race) =>
+            race.rival ? (
+              <MatchScore
+                key={race.id}
+                left={{ name: race.leader, score: race.score }}
+                right={{ name: race.rival, score: race.rivalScore }}
+                days={race.days}
+              />
+            ) : (
+              <LeaderScore key={race.id} race={race} />
+            )
+          )}
+        </div>
+      ) : (
+        <PeriodUnavailable
+          title={`Collection race · ${period.label}`}
+          detail="The CBH/CCH race scores are a combined three-month result, not a month-specific score."
+        />
+      )}
       <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-        {collectionLeaders.map((leader, index) => (
+        {sortedLeaders.map((leader, index) => (
           <CollectionPersonCard
             key={leader.name}
             leader={leader}
             index={index}
-            tier={performanceTier(collectionLeaders, leader, "achievement")}
+            period={period}
+            tier={
+              index === 0
+                ? "top"
+                : index === sortedLeaders.length - 1
+                  ? "low"
+                  : null
+            }
           />
         ))}
       </div>
@@ -1028,12 +1229,8 @@ function RewardStrip({ league }) {
   );
 }
 
-function ChallengePodium({ league }) {
-  const [second, first, third] = [
-    league.brands[1],
-    league.brands[0],
-    league.brands[2],
-  ];
+function ChallengePodium({ league, brands, period }) {
+  const [second, first, third] = [brands[1], brands[0], brands[2]];
   const places = [
     {
       label: "2nd place",
@@ -1071,7 +1268,7 @@ function ChallengePodium({ league }) {
           <p className="mt-2 truncate text-[10px] font-bold text-[#303a34]">
             {place.brand?.name ?? "—"}
           </p>
-          {place.brand && (
+          {place.brand && period.isCurrentSnapshot && (
             <>
               <p className="mt-2 text-xs font-bold text-[#29825d]">
                 {amount(place.brand.achieved)}
@@ -1080,6 +1277,11 @@ function ChallengePodium({ league }) {
                 Collection {percent(place.brand.current)}
               </p>
             </>
+          )}
+          {place.brand && !period.isCurrentSnapshot && (
+            <p className="mt-2 text-xs font-bold text-[#29825d]">
+              Collection {percent(place.brand[period.collectionField])}
+            </p>
           )}
         </div>
       ))}
@@ -1099,30 +1301,58 @@ const tableHeadings = [
 ];
 
 function BrandTable({ league }) {
+  const { period } = useReportPeriod();
+  const isHistorical = !period.isCurrentSnapshot;
   const brands = useMemo(
     () =>
       [
         ...league.brands,
         ...(league.additionalBrands ?? []),
-      ].sort((first, second) => first.rank - second.rank),
+      ],
     [league.brands, league.additionalBrands]
   );
-  const highlightCount = Math.min(3, Math.max(1, Math.ceil(brands.length * 0.1)));
-  const lowestRank = Math.max(...brands.map((brand) => brand.rank));
+  const rankedBrands = useMemo(() => {
+    const availableBrands = isHistorical
+      ? brands
+          .filter((brand) => Number.isFinite(brand[period.collectionField]))
+          .sort(
+            (first, second) =>
+              second[period.collectionField] - first[period.collectionField] ||
+              first.name.localeCompare(second.name)
+          )
+      : [...brands].sort((first, second) => first.rank - second.rank);
+
+    return availableBrands.map((brand, index) => ({
+      ...brand,
+      displayRank: index + 1,
+    }));
+  }, [brands, isHistorical, period.collectionField]);
+  const highlightCount = Math.min(
+    3,
+    Math.max(1, Math.ceil(rankedBrands.length * 0.1))
+  );
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  useEffect(() => {
+    if (
+      isHistorical &&
+      (filter === "target-20" || filter === "collection-na")
+    ) {
+      setFilter("all");
+    }
+  }, [filter, isHistorical]);
   const normalizedSearch = search.trim().toLocaleLowerCase();
   const filteredBrands = useMemo(
     () =>
-      brands.filter((brand) => {
+      rankedBrands.filter((brand) => {
         const matchesSearch =
           !normalizedSearch ||
           [
-            brand.rank,
+            brand.displayRank,
             brand.name,
-            brand.owner,
-            brand.badge,
-            brand.members,
+            ...(!isHistorical
+              ? [brand.owner, brand.badge, brand.members]
+              : []),
           ]
             .filter((value) => value != null)
             .some((value) =>
@@ -1133,24 +1363,38 @@ function BrandTable({ league }) {
 
         switch (filter) {
           case "top-10":
-            return brand.rank <= 10;
+            return brand.displayRank <= 10;
           case "target-20":
+            if (isHistorical) return false;
             return brand.targetPercent >= 20;
           case "collection-90":
-            return brand.current != null && brand.current >= 90;
+            return (
+              brand[period.collectionField] != null &&
+              brand[period.collectionField] >= 90
+            );
           case "collection-80":
-            return brand.current != null && brand.current >= 80 && brand.current < 90;
+            return (
+              brand[period.collectionField] != null &&
+              brand[period.collectionField] >= 80 &&
+              brand[period.collectionField] < 90
+            );
           case "collection-low":
-            return brand.current != null && brand.current < 80;
+            return (
+              brand[period.collectionField] != null &&
+              brand[period.collectionField] < 80
+            );
           case "collection-na":
-            return brand.current == null;
+            return brand[period.collectionField] == null;
           default:
             return true;
         }
       }),
-    [brands, filter, normalizedSearch]
+    [rankedBrands, filter, isHistorical, normalizedSearch, period.collectionField]
   );
   const hasActiveFilters = Boolean(normalizedSearch) || filter !== "all";
+  const headings = isHistorical
+    ? ["Rank", "Brand", `Collection · ${period.collectionLabel}`]
+    : tableHeadings;
 
   return (
     <div className="league-table-panel mt-3 overflow-hidden rounded-2xl border border-[#d9e2dc] bg-white shadow-[0_3px_12px_rgba(48,72,55,0.045)]">
@@ -1182,11 +1426,15 @@ function BrandTable({ league }) {
           >
             <option value="all">All brands</option>
             <option value="top-10">Top 10 ranks</option>
-            <option value="target-20">Target achievement · 20%+</option>
+            {!isHistorical && (
+              <option value="target-20">Target achievement · 20%+</option>
+            )}
             <option value="collection-90">Collection · 90%+</option>
             <option value="collection-80">Collection · 80–89.99%</option>
             <option value="collection-low">Collection · below 80%</option>
-            <option value="collection-na">Collection · N/A</option>
+            {!isHistorical && (
+              <option value="collection-na">Collection · N/A</option>
+            )}
           </select>
           {hasActiveFilters && (
             <button
@@ -1206,14 +1454,20 @@ function BrandTable({ league }) {
           className="text-[10px] font-semibold tabular-nums text-[#78867c] sm:ml-auto sm:whitespace-nowrap"
           aria-live="polite"
         >
-          {filteredBrands.length} of {brands.length} brands
+          {filteredBrands.length} of {rankedBrands.length} brands
         </span>
       </div>
       <div className="league-table-scroll scroll-thin overflow-x-auto">
-        <table className="w-full min-w-[800px] border-collapse text-left text-[10px]">
+        <table
+          className={`w-full border-collapse text-left text-[10px] ${
+            isHistorical
+              ? "league-history-table min-w-[360px]"
+              : "min-w-[800px]"
+          }`}
+        >
           <thead className="bg-[#293e39] text-white">
             <tr>
-              {tableHeadings.map((heading) => (
+              {headings.map((heading) => (
                 <th
                   key={heading}
                   scope="col"
@@ -1226,14 +1480,15 @@ function BrandTable({ league }) {
           </thead>
           <tbody>
             {filteredBrands.map((brand, index) => {
-              const isTop = brand.rank <= highlightCount;
-              const isLow = brand.rank > lowestRank - highlightCount;
+              const isTop = brand.displayRank <= highlightCount;
+              const isLow =
+                brand.displayRank > rankedBrands.length - highlightCount;
               return (
               <tr
                 key={`${brand.rank}-${brand.name}`}
                 className={`border-b border-[#dce4dd] ${
                   isTop
-                    ? brand.rank === 1
+                    ? brand.displayRank === 1
                       ? "bg-[#fff8e7]"
                       : "bg-[#eef7ef]"
                     : isLow
@@ -1244,22 +1499,26 @@ function BrandTable({ league }) {
                 }`}
               >
                 <td className="border border-[#e1e7e2] px-3 py-3 text-center text-xs font-bold text-[#536d5f]">
-                  {brand.rank <= 3 ? (
+                  {!isHistorical && brand.displayRank <= 3 ? (
                     <FiAward
                       className={`mx-auto size-4 ${
-                        brand.rank === 1
+                        brand.displayRank === 1
                           ? "text-[#c3913b]"
-                          : brand.rank === 2
+                          : brand.displayRank === 2
                             ? "text-[#87949a]"
                             : "text-[#b87958]"
                       }`}
-                      aria-label={`Rank ${brand.rank}`}
+                      aria-label={`Rank ${brand.displayRank}`}
                     />
                   ) : (
-                    brand.rank
+                    brand.displayRank
                   )}
                 </td>
-                <td className="min-w-[190px] border border-[#e1e7e2] px-3 py-2.5">
+                <td
+                  className={`border border-[#e1e7e2] px-3 py-2.5 ${
+                    isHistorical ? "min-w-[190px]" : "min-w-[190px]"
+                  }`}
+                >
                   <p className="font-bold text-[#29342e]">
                     {brand.name}{" "}
                     {isTop && (
@@ -1272,18 +1531,25 @@ function BrandTable({ league }) {
                         Low
                       </span>
                     )}
-                    {(brand.badge || brand.members != null) && (
+                    {!isHistorical &&
+                      (brand.badge || brand.members != null) && (
                       <span className="text-[#7888b3]">
                         {brand.badge} · {brand.members}
                       </span>
                     )}
                   </p>
-                  {brand.owner && (
+                  {!isHistorical && brand.owner && (
                     <p className="mt-1 text-[8px] leading-relaxed text-[#818b84]">
                       {brand.owner}
                     </p>
                   )}
                 </td>
+                {isHistorical ? (
+                  <td className="whitespace-nowrap border border-[#e1e7e2] px-3 py-3 text-center font-bold tabular-nums text-[#43805d]">
+                    {percent(brand[period.collectionField])}
+                  </td>
+                ) : (
+                  <>
                 <td className="whitespace-nowrap border border-[#e1e7e2] px-3 py-3 text-center tabular-nums text-[#505b54]">
                   ₹{Number(brand.target).toFixed(2)}
                 </td>
@@ -1311,10 +1577,12 @@ function BrandTable({ league }) {
                     </td>
                   )
                 )}
+                  </>
+                )}
               </tr>
               );
             })}
-            {league.total && !hasActiveFilters && (
+            {league.total && !isHistorical && !hasActiveFilters && (
               <tr className="border-t-2 border-[#bfc9c0] bg-[#eef2ed] font-bold text-[#37443b]">
                 <th colSpan={2} className="border border-[#cbd5cc] px-3 py-3 text-left uppercase">
                   {league.title} total
@@ -1334,7 +1602,7 @@ function BrandTable({ league }) {
             {filteredBrands.length === 0 && (
               <tr>
                 <td
-                  colSpan={tableHeadings.length}
+                  colSpan={headings.length}
                   className="border border-[#e1e7e2] px-4 py-10 text-center text-xs font-medium text-[#78867c]"
                 >
                   No brands match your search or filter.
@@ -1345,15 +1613,18 @@ function BrandTable({ league }) {
         </table>
       </div>
       <p className="border-t border-[#dce5de] px-3 py-2.5 text-[9px] leading-relaxed text-[#8a938d]">
-        {league.id === "survivors"
-          ? `All ${brands.length} Survivors rows are transcribed from the supplied recording. Cells shown as — were marked N/A in the recorded report.`
-          : `All ${league.brands.length} brand rows readable in the recording.`}
+        {isHistorical
+          ? `${rankedBrands.length} brands have recorded ${period.collectionLabel} collection data. Rows are ranked by the selected month; other month-specific league metrics were not provided.`
+          : league.id === "survivors"
+            ? `All ${brands.length} Survivors rows are transcribed from the supplied recording. Cells shown as — were marked N/A in the recorded report.`
+            : `All ${league.brands.length} brand rows readable in the recording.`}
       </p>
     </div>
   );
 }
 
 function ChallengeCard({ league }) {
+  const { period } = useReportPeriod();
   const accent = {
     legends: {
       line: "border-l-[#9271bc]",
@@ -1372,6 +1643,21 @@ function ChallengeCard({ league }) {
       badge: "bg-[#fbefe5] text-[#a05d34]",
     },
   }[league.id];
+  const allBrands = [
+    ...league.brands,
+    ...(league.additionalBrands ?? []),
+  ];
+  const rankedBrands = period.isCurrentSnapshot
+    ? [...allBrands].sort((first, second) => first.rank - second.rank)
+    : allBrands
+        .filter((brand) =>
+          Number.isFinite(brand[period.collectionField])
+        )
+        .sort(
+          (first, second) =>
+            second[period.collectionField] - first[period.collectionField] ||
+            first.name.localeCompare(second.name)
+        );
 
   return (
     <article
@@ -1394,13 +1680,13 @@ function ChallengeCard({ league }) {
           </div>
         </div>
         <span className="rounded-full bg-[#f4f5f2] px-3 py-1.5 text-[9px] font-bold text-[#778179]">
-          {league.count} brands
+          {period.isCurrentSnapshot ? league.count : rankedBrands.length} brands
         </span>
       </div>
       <div className="mt-4">
         <RewardStrip league={league} />
       </div>
-      {league.locked ? (
+      {period.isCurrentSnapshot && league.locked ? (
         <div className="mt-3 flex min-h-[180px] flex-col items-center justify-center rounded-2xl border border-dashed border-[#dfe5e0] bg-[#f7f8f6] px-4 text-center">
           <span className="flex size-11 items-center justify-center rounded-2xl bg-white text-[#79929a] shadow-sm">
             <FiLock className="size-5" aria-hidden="true" />
@@ -1412,10 +1698,21 @@ function ChallengeCard({ league }) {
             No brand has reached this tier yet.
           </p>
         </div>
+      ) : !period.isCurrentSnapshot && rankedBrands.length === 0 ? (
+        <div className="mt-3">
+          <PeriodUnavailable
+            title={`${league.title} · ${period.label}`}
+            detail={`This recording has no ${period.collectionLabel} brand collection rows for this league.`}
+          />
+        </div>
       ) : (
         <>
           <div className="mt-3">
-            <ChallengePodium league={league} />
+            <ChallengePodium
+              league={league}
+              brands={rankedBrands}
+              period={period}
+            />
           </div>
           <BrandTable league={league} />
         </>
@@ -1425,13 +1722,18 @@ function ChallengeCard({ league }) {
 }
 
 function LeagueStandings() {
+  const { period } = useReportPeriod();
   return (
     <section id="leagues" className="scroll-mt-48 space-y-3">
       <PageHeading
         number="05"
         eyebrow="Monthly challenge · awards"
         title="League standings & rewards"
-        detail="Podium brands, collection rankings and royalty for each collection tier."
+        detail={
+          period.isCurrentSnapshot
+            ? "Podium brands, collection rankings and royalty for each collection tier."
+            : `Brand rankings are recalculated using recorded ${period.collectionLabel} collection percentages.`
+        }
       />
       <div className="mb-3 flex items-start gap-3 rounded-[18px] border border-[#e7eae5] bg-white px-4 py-3 text-[10px] text-[#737e77]">
         <FiZap className="mt-0.5 size-4 shrink-0 text-[#b58948]" aria-hidden="true" />
@@ -1483,6 +1785,7 @@ function InsightMetric({ label, value, detail, icon: Icon, tone }) {
 }
 
 function InsightsDialog({ onClose }) {
+  const { period, setPeriodId } = useReportPeriod();
   const dialogRef = useRef(null);
   const disbursementLeaders = REPORT_SNAPSHOT.disbursementLeaders;
   const bestDisbursement = [...disbursementLeaders].sort(
@@ -1498,19 +1801,28 @@ function InsightsDialog({ onClose }) {
     (first, second) => first.total.percent - second.total.percent
   )[0];
   const sortedCollectionLeaders = [...REPORT_SNAPSHOT.collectionLeaders].sort(
-    (first, second) => second.achievement - first.achievement
+    (first, second) =>
+      second.monthly.collectPercent[period.collectionIndex] -
+      first.monthly.collectPercent[period.collectionIndex]
   );
   const bestCollectionLeader = sortedCollectionLeaders[0];
   const lowestCollectionLeader =
     sortedCollectionLeaders[sortedCollectionLeaders.length - 1];
   const rankedBrands = REPORT_SNAPSHOT.challenges
     .flatMap((league) =>
-      [...league.brands, ...(league.additionalBrands ?? [])].map((brand) => ({
-        ...brand,
-        league: league.title,
-      }))
+      [...league.brands, ...(league.additionalBrands ?? [])]
+        .filter((brand) =>
+          period.isCurrentSnapshot
+            ? Number.isFinite(brand.targetPercent)
+            : Number.isFinite(brand[period.collectionField])
+        )
+        .map((brand) => ({ ...brand, league: league.title }))
     )
-    .sort((first, second) => second.targetPercent - first.targetPercent);
+    .sort((first, second) =>
+      period.isCurrentSnapshot
+        ? second.targetPercent - first.targetPercent
+        : second[period.collectionField] - first[period.collectionField]
+    );
   const topBrand = rankedBrands[0];
 
   useEffect(() => {
@@ -1589,7 +1901,7 @@ function InsightsDialog({ onClose }) {
             </span>
             <div>
               <p className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#829088]">
-                At a glance · {REPORT_SNAPSHOT.reportDate}
+                At a glance · {period.label}
               </p>
               <h2
                 id="insights-title"
@@ -1610,35 +1922,90 @@ function InsightsDialog({ onClose }) {
         </div>
 
         <div className="space-y-5 p-4 sm:p-6">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[#e4eae3] bg-white px-3 py-2.5">
+            <span className="text-[9px] font-bold uppercase tracking-wide text-[#718078]">
+              Filter all dashboard data
+            </span>
+            <label className="inline-flex min-w-0 items-center gap-2 rounded-xl border border-[#d6e0d8] bg-white px-2.5 py-1.5 text-[#46564b]">
+              <FiCalendar
+                className="size-3.5 shrink-0 text-[#74877a]"
+                aria-hidden="true"
+              />
+              <span className="sr-only">Filter dashboard by reporting month</span>
+              <select
+                value={period.id}
+                onChange={(event) => setPeriodId(event.target.value)}
+                className="min-w-0 max-w-[160px] cursor-pointer bg-transparent text-[10px] font-bold text-inherit outline-none [&>option]:bg-white [&>option]:text-[#27342e]"
+              >
+                {REPORT_PERIODS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <InsightMetric
               label="Achieved MTD"
-              value={amount(REPORT_SNAPSHOT.mission.achieved)}
-              detail={`${percent(REPORT_SNAPSHOT.overall.achievedPercent)} of overall target`}
+              value={
+                period.isCurrentSnapshot
+                  ? amount(REPORT_SNAPSHOT.mission.achieved)
+                  : "Unavailable"
+              }
+              detail={
+                period.isCurrentSnapshot
+                  ? `${percent(REPORT_SNAPSHOT.overall.achievedPercent)} of overall target`
+                  : `No achieved MTD data for ${period.label}`
+              }
               icon={FiDollarSign}
               tone="green"
             />
             <InsightMetric
               label="Target"
-              value={amount(REPORT_SNAPSHOT.overall.target, 0)}
-              detail={`${REPORT_SNAPSHOT.mission.daysElapsed} of ${REPORT_SNAPSHOT.mission.daysInMonth} days elapsed`}
+              value={
+                period.isCurrentSnapshot
+                  ? amount(REPORT_SNAPSHOT.overall.target, 0)
+                  : "Unavailable"
+              }
+              detail={
+                period.isCurrentSnapshot
+                  ? `${REPORT_SNAPSHOT.mission.daysElapsed} of ${REPORT_SNAPSHOT.mission.daysInMonth} days elapsed`
+                  : `No company target recorded for ${period.label}`
+              }
               icon={FiTarget}
               tone="blue"
             />
             <InsightMetric
               label="Users today"
-              value={REPORT_SNAPSHOT.usersToday}
-              detail={`${REPORT_SNAPSHOT.currentUsers} currently recorded`}
+              value={
+                period.isCurrentSnapshot
+                  ? REPORT_SNAPSHOT.usersToday
+                  : "Unavailable"
+              }
+              detail={
+                period.isCurrentSnapshot
+                  ? `${REPORT_SNAPSHOT.currentUsers} currently recorded`
+                  : `No user activity history for ${period.label}`
+              }
               icon={FiUsers}
               tone="amber"
             />
             <InsightMetric
               label="League brands"
-              value={REPORT_SNAPSHOT.leagues.reduce(
-                (total, league) => total + league.count,
-                0
-              )}
-              detail="Across all recorded tiers"
+              value={
+                period.isCurrentSnapshot
+                  ? REPORT_SNAPSHOT.leagues.reduce(
+                      (total, league) => total + league.count,
+                      0
+                    )
+                  : rankedBrands.length
+              }
+              detail={
+                period.isCurrentSnapshot
+                  ? "Across all recorded tiers"
+                  : `Brands with ${period.collectionLabel} data`
+              }
               icon={FiAward}
               tone="rose"
             />
@@ -1654,52 +2021,92 @@ function InsightsDialog({ onClose }) {
             <div className="grid gap-2 sm:grid-cols-2">
               <InsightMetric
                 label="Top disbursement performer"
-                value={bestDisbursement.name}
-                detail={`${percent(bestDisbursement.percent)} target progress · ${amount(bestDisbursement.achieved)} achieved`}
+                value={
+                  period.isCurrentSnapshot
+                    ? bestDisbursement.name
+                    : "Unavailable"
+                }
+                detail={
+                  period.isCurrentSnapshot
+                    ? `${percent(bestDisbursement.percent)} target progress · ${amount(bestDisbursement.achieved)} achieved`
+                    : `No disbursement history for ${period.label}`
+                }
                 icon={FiTrendingUp}
                 tone="green"
               />
               <InsightMetric
                 label="Needs attention"
-                value={lowestDisbursement.name}
-                detail={`${percent(lowestDisbursement.percent)} target progress · lowest in this group`}
+                value={
+                  period.isCurrentSnapshot
+                    ? lowestDisbursement.name
+                    : "Unavailable"
+                }
+                detail={
+                  period.isCurrentSnapshot
+                    ? `${percent(lowestDisbursement.percent)} target progress · lowest in this group`
+                    : `No disbursement history for ${period.label}`
+                }
                 icon={FiActivity}
                 tone="rose"
               />
               <InsightMetric
                 label="Leading team"
-                value={bestTeam.name.replace("TEAM ", "")}
-                detail={`${percent(bestTeam.total.percent)} overall target progress`}
+                value={
+                  period.isCurrentSnapshot
+                    ? bestTeam.name.replace("TEAM ", "")
+                    : "Unavailable"
+                }
+                detail={
+                  period.isCurrentSnapshot
+                    ? `${percent(bestTeam.total.percent)} overall target progress`
+                    : `No team target history for ${period.label}`
+                }
                 icon={FiAward}
                 tone="blue"
               />
               <InsightMetric
                 label="Team to catch up"
-                value={lowestTeam.name.replace("TEAM ", "")}
-                detail={`${percent(lowestTeam.total.percent)} overall target progress`}
+                value={
+                  period.isCurrentSnapshot
+                    ? lowestTeam.name.replace("TEAM ", "")
+                    : "Unavailable"
+                }
+                detail={
+                  period.isCurrentSnapshot
+                    ? `${percent(lowestTeam.total.percent)} overall target progress`
+                    : `No team target history for ${period.label}`
+                }
                 icon={FiUsers}
                 tone="rose"
               />
               <InsightMetric
                 label="Top collection leader"
                 value={bestCollectionLeader.name}
-                detail={`${percent(bestCollectionLeader.achievement)} recorded collection achievement`}
+                detail={`${percent(bestCollectionLeader.monthly.collectPercent[period.collectionIndex])} recorded collection for ${period.label}`}
                 icon={FiActivity}
                 tone="green"
               />
               <InsightMetric
                 label="Lowest collection achievement"
                 value={lowestCollectionLeader.name}
-                detail={`${percent(lowestCollectionLeader.achievement)} recorded collection achievement`}
+                detail={`${percent(lowestCollectionLeader.monthly.collectPercent[period.collectionIndex])} recorded collection for ${period.label}`}
                 icon={FiActivity}
                 tone="rose"
               />
               <InsightMetric
-                label="Top brand · target progress"
+                label={
+                  period.isCurrentSnapshot
+                    ? "Top brand · target progress"
+                    : "Top brand · collection"
+                }
                 value={topBrand?.name ?? "No brand data"}
                 detail={
                   topBrand
-                    ? `${percent(topBrand.targetPercent)} · ${topBrand.league}`
+                    ? `${percent(
+                        period.isCurrentSnapshot
+                          ? topBrand.targetPercent
+                          : topBrand[period.collectionField]
+                      )} · ${topBrand.league}`
                     : "No ranked brands in this snapshot"
                 }
                 icon={FiStar}
@@ -1707,8 +2114,9 @@ function InsightsDialog({ onClose }) {
               />
             </div>
             <p className="mt-2 text-[9px] leading-relaxed text-[#89948c]">
-              “Needs attention” is the lowest target progress in the recorded
-              disbursement group, not a live alert.
+              {period.isCurrentSnapshot
+                ? "“Needs attention” is the lowest target progress in the recorded disbursement group, not a live alert."
+                : `Team targets, mission totals, user activity and disbursement figures have no recorded ${period.label} history.`}
             </p>
           </div>
 
@@ -1736,7 +2144,9 @@ function InsightsDialog({ onClose }) {
             </button>
           </div>
           <p className="text-[9px] text-[#929b95]">
-            Recorded snapshot · live data source is not connected.
+            {period.isCurrentSnapshot
+              ? "Recorded snapshot · live data source is not connected."
+              : `Historical collection values are from ${period.collectionLabel}; unavailable measures are not estimated.`}
           </p>
         </div>
       </section>
@@ -1745,6 +2155,7 @@ function InsightsDialog({ onClose }) {
 }
 
 function Footer() {
+  const { period } = useReportPeriod();
   return (
     <footer className="flex flex-col gap-2 border-t border-[#e4e8e2] py-4 text-[10px] leading-relaxed text-[#818c85] sm:flex-row sm:items-center sm:justify-between">
       <span className="inline-flex items-center gap-2">
@@ -1752,17 +2163,22 @@ function Footer() {
         Recording snapshot · {REPORT_SNAPSHOT.reportDate}
       </span>
       <span>
-        Figures are transcribed from the supplied recording. Live data requires
-        the original authenticated report source.
+        {period.isCurrentSnapshot
+          ? "Figures are transcribed from the supplied recording. Live data requires the original authenticated report source."
+          : `Showing recorded ${period.collectionLabel} collection history where available; other sections require historical source data.`}
       </span>
     </footer>
   );
 }
 
 export default function PerformanceDashboard() {
+  const [selectedPeriodId, setSelectedPeriodId] = useState("october");
   const [isInsightsOpen, setIsInsightsOpen] = useState(true);
   const insightsTriggerRef = useRef(null);
   const wasInsightsOpenRef = useRef(false);
+  const period =
+    REPORT_PERIODS.find((option) => option.id === selectedPeriodId) ??
+    REPORT_PERIODS[0];
 
   useEffect(() => {
     if (!isInsightsOpen && wasInsightsOpenRef.current) {
@@ -1776,6 +2192,15 @@ export default function PerformanceDashboard() {
   };
 
   return (
+    <ReportPeriodContext.Provider
+      value={{
+        period,
+        setPeriodId: (periodId) => {
+          setSelectedPeriodId(periodId);
+          setIsInsightsOpen(false);
+        },
+      }}
+    >
     <div className="min-h-screen bg-[#f4f6f2] text-[#27342e]">
       <Header
         onOpenInsights={() => setIsInsightsOpen(true)}
@@ -1789,12 +2214,14 @@ export default function PerformanceDashboard() {
                 SALES &amp; COLLECTIONS · MONTHLY REPORT
               </p>
               <h2 className="mt-1 text-xl font-bold tracking-tight text-[#1f3029] sm:text-2xl">
-                Performance overview
+                {period.label} performance overview
               </h2>
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ecdcbf] bg-[#fff9ee] px-3 py-1.5 text-[9px] font-semibold text-[#92703b]">
               <FiRadio className="size-3" aria-hidden="true" />
-              Recorded snapshot · live source not connected
+              {period.isCurrentSnapshot
+                ? `Recorded snapshot · ${REPORT_SNAPSHOT.reportDate}`
+                : `Historical filter · ${period.collectionLabel}`}
             </span>
           </div>
           <MissionHero />
@@ -1808,5 +2235,6 @@ export default function PerformanceDashboard() {
       </main>
       {isInsightsOpen && <InsightsDialog onClose={closeInsights} />}
     </div>
+    </ReportPeriodContext.Provider>
   );
 }
