@@ -68,6 +68,10 @@ body {
   min-width: 800px;
 }
 
+.league-table-scroll > table.league-history-table {
+  min-width: 360px;
+}
+
 html {
   scroll-behavior: smooth;
 }
