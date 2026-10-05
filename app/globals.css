@@ -43,6 +43,31 @@ body {
   box-shadow: 0 10px 26px rgba(49, 82, 60, 0.09);
 }
 
+.league-card-grid,
+.league-card,
+.league-table-panel,
+.league-reward-strip,
+.league-podium-grid {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.league-table-panel {
+  overflow: hidden;
+}
+
+.league-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.league-table-scroll > table {
+  min-width: 800px;
+}
+
 html {
   scroll-behavior: smooth;
 }
