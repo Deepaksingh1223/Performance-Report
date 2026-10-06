@@ -796,6 +796,408 @@ export const REPORT_SNAPSHOT = {
   ],
 };
 
+// Historical snapshots are explicitly marked demo data until verified exports exist.
+const STATIC_PERIODS = {
+  september: {
+    label: "September 2026",
+    achieved: 1176.42,
+    target: 1425,
+    daysElapsed: 30,
+    currentUsers: 58,
+    usersToday: 106,
+    amountFactor: 0.94,
+    achievementFactor: 1.04,
+    memberFactor: 0.97,
+    collectionAdjustment: -0.35,
+    headToHead: { leaderScore: 18, rivalScore: 14 },
+    teamScores: [2, 3],
+    raceScores: [3, 2],
+  },
+  august: {
+    label: "August 2026",
+    achieved: 1092.68,
+    target: 1380,
+    daysElapsed: 31,
+    currentUsers: 54,
+    usersToday: 98,
+    amountFactor: 0.88,
+    achievementFactor: 0.97,
+    memberFactor: 0.93,
+    collectionAdjustment: 0.45,
+    headToHead: { leaderScore: 16, rivalScore: 15 },
+    teamScores: [3, 2],
+    raceScores: [2, 3],
+  },
+};
+
+function round(value, digits = 2) {
+  return Number(value.toFixed(digits));
+}
+
+function adjustedBrandPercent(value, adjustment) {
+  const match = String(value).match(/^(\d+(?:\.\d+)?)%$/);
+  if (!match) return value;
+  return `${round(Number(match[1]) + adjustment, 1)}%`;
+}
+
+function stableCollectionValue(brand, adjustment) {
+  const nameScore = Array.from(brand.name).reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0
+  );
+  const base = Number.isFinite(brand.current)
+    ? brand.current
+    : 76 + (nameScore % 1200) / 100;
+  return round(Math.max(65, Math.min(99, base + adjustment)), 2);
+}
+
+function getStaticHistoricalReport(periodId) {
+  const profile = STATIC_PERIODS[periodId];
+  if (!profile) return REPORT_SNAPSHOT;
+
+  const amountFactor = profile.amountFactor;
+  const achievementFactor = profile.achievementFactor;
+  const teams = REPORT_SNAPSHOT.teams.map((team, index) => {
+    const performers = team.performers.map((performer) => {
+      const target = round(performer.target * amountFactor);
+      const achieved = round(
+        performer.achieved * amountFactor * achievementFactor
+      );
+      return {
+        ...performer,
+        count: Math.round(performer.count * profile.memberFactor),
+        target,
+        achieved,
+        percent: target ? round((achieved / target) * 100) : 0,
+        brands: performer.brands.map(([brand, value]) => [
+          brand,
+          adjustedBrandPercent(value, profile.collectionAdjustment),
+        ]),
+      };
+    });
+    const lapOneTarget = round(team.lapOne.target * amountFactor);
+    const lapOneAchieved = round(
+      team.lapOne.achieved * amountFactor * achievementFactor
+    );
+    const lapTwoTarget = round(team.lapTwo.target * amountFactor);
+    const lapTwoAchieved = round(
+      team.lapTwo.achieved * amountFactor * achievementFactor
+    );
+    const totalTarget = round(team.total.target * amountFactor);
+    const totalAchieved = round(
+      (team.lapOne.achieved + team.lapTwo.achieved) *
+        amountFactor *
+        achievementFactor
+    );
+
+    return {
+      ...team,
+      memberCount: Math.round(team.memberCount * profile.memberFactor),
+      score: profile.teamScores[index],
+      collectionTotals: {
+        cbh: Math.round(team.collectionTotals.cbh * amountFactor),
+        cch: Math.round(team.collectionTotals.cch * amountFactor),
+      },
+      raceMembers: team.raceMembers.map((member) => ({
+        ...member,
+        score: Math.max(0, member.score + profile.teamScores[index] - team.score),
+      })),
+      lapOne: {
+        target: lapOneTarget,
+        achieved: lapOneAchieved,
+        percent: lapOneTarget ? round((lapOneAchieved / lapOneTarget) * 100) : 0,
+      },
+      lapTwo: {
+        target: lapTwoTarget,
+        achieved: lapTwoAchieved,
+        percent: lapTwoTarget ? round((lapTwoAchieved / lapTwoTarget) * 100) : 0,
+      },
+      total: {
+        target: totalTarget,
+        percent: totalTarget ? round((totalAchieved / totalTarget) * 100) : 0,
+      },
+      performers,
+    };
+  });
+  const disbursementLeaders = REPORT_SNAPSHOT.disbursementLeaders.map(
+    (performer) => {
+      const target = round(performer.target * amountFactor);
+      const achieved = round(
+        performer.achieved * amountFactor * achievementFactor
+      );
+      return {
+        ...performer,
+        count: Math.round(performer.count * profile.memberFactor),
+        target,
+        achieved,
+        percent: target ? round((achieved / target) * 100) : 0,
+        brands: performer.brands.map(([brand, value]) => [
+          brand,
+          adjustedBrandPercent(value, profile.collectionAdjustment),
+        ]),
+      };
+    }
+  );
+  const challenges = REPORT_SNAPSHOT.challenges.map((league) => ({
+    ...league,
+    total: league.total
+      ? {
+          ...league.total,
+          target: round(league.total.target * amountFactor),
+          achieved: round(league.total.achieved * amountFactor),
+        }
+      : league.total,
+    brands: league.brands.map((brand) => ({
+      ...brand,
+      target: round(brand.target * amountFactor),
+      achieved: round(brand.achieved * amountFactor),
+      current: stableCollectionValue(brand, profile.collectionAdjustment),
+      september:
+        brand.september ??
+        stableCollectionValue(brand, profile.collectionAdjustment),
+      august:
+        brand.august ?? stableCollectionValue(brand, profile.collectionAdjustment),
+    })),
+    additionalBrands: league.additionalBrands?.map((brand) => ({
+      ...brand,
+      target: round(brand.target * amountFactor),
+      achieved: round(brand.achieved * amountFactor),
+      current: stableCollectionValue(brand, profile.collectionAdjustment),
+      september:
+        brand.september ??
+        stableCollectionValue(brand, profile.collectionAdjustment),
+      august:
+        brand.august ?? stableCollectionValue(brand, profile.collectionAdjustment),
+    })),
+  }));
+  const achievedPercent = round(
+    (profile.achieved / REPORT_SNAPSHOT.overall.target) * 100
+  );
+
+  return {
+    ...REPORT_SNAPSHOT,
+    isStaticSample: true,
+    reportDate: `${profile.label} · static sample`,
+    currentUsers: profile.currentUsers,
+    usersToday: profile.usersToday,
+    mission: {
+      ...REPORT_SNAPSHOT.mission,
+      label: profile.label,
+      target: profile.target,
+      achieved: profile.achieved,
+      daysElapsed: profile.daysElapsed,
+      daysInMonth: periodId === "september" ? 30 : 31,
+    },
+    overall: {
+      ...REPORT_SNAPSHOT.overall,
+      target: REPORT_SNAPSHOT.overall.target,
+      achieved: profile.achieved,
+      achievedPercent,
+      targetTillDate: round(
+        (profile.daysElapsed / (periodId === "september" ? 30 : 31)) * 100
+      ),
+    },
+    minimumTargets: REPORT_SNAPSHOT.minimumTargets.map((target) => ({
+      ...target,
+      target: round(target.target + profile.collectionAdjustment, 1),
+    })),
+    headToHead: {
+      ...REPORT_SNAPSHOT.headToHead,
+      leaderScore: profile.headToHead.leaderScore,
+      rivalScore: profile.headToHead.rivalScore,
+      days: profile.daysElapsed,
+    },
+    teams,
+    disbursementLeaders,
+    collectionRaces: REPORT_SNAPSHOT.collectionRaces.map((race, index) => ({
+      ...race,
+      team: race.team.replace("3-MONTH", periodId.toUpperCase()),
+      score: profile.raceScores[index],
+      ...(race.rival
+        ? {
+            rivalScore: profile.raceScores[1],
+            days: profile.daysElapsed,
+          }
+        : {}),
+    })),
+    challenges,
+  };
+}
+
+function getDailyReport(report, periodId, dayOfMonth) {
+  const isOctober = periodId === "october";
+  const monthDays = periodId === "september" ? 30 : 31;
+  const recordedDays = isOctober ? 4 : monthDays;
+  const dayWeight = 0.76 + ((dayOfMonth * 7) % 10) * 0.055;
+  const collectionIndex = { october: 0, september: 1, august: 2 }[periodId];
+  const collectionField = ["current", "september", "august"][collectionIndex];
+  const dailyAmount = (value) =>
+    round((value / recordedDays) * dayWeight);
+  const dailyTarget = (value) => round(value / monthDays);
+  const dailyCollectionPercent = (value) =>
+    round(Math.max(0, value + ((dayOfMonth % 5) - 2) * 0.12), 2);
+
+  const teams = report.teams.map((team) => {
+    const performers = team.performers.map((performer) => {
+      const target = dailyTarget(performer.target);
+      const achieved = dailyAmount(performer.achieved);
+      return {
+        ...performer,
+        count: Math.round(performer.count * dayWeight * 0.25),
+        target,
+        achieved,
+        percent: target ? round((achieved / target) * 100) : 0,
+      };
+    });
+    const lapOneTarget = dailyTarget(team.lapOne.target);
+    const lapOneAchieved = dailyAmount(team.lapOne.achieved);
+    const lapTwoTarget = dailyTarget(team.lapTwo.target);
+    const lapTwoAchieved = dailyAmount(team.lapTwo.achieved);
+    const totalTarget = dailyTarget(team.total.target);
+    const totalAchieved = dailyAmount(
+      team.lapOne.achieved + team.lapTwo.achieved
+    );
+
+    return {
+      ...team,
+      memberCount: Math.round(team.memberCount * dayWeight * 0.25),
+      score: (team.score + dayOfMonth) % 2,
+      collectionTotals: {
+        cbh: Math.round(team.collectionTotals.cbh * dayWeight * 0.25),
+        cch: Math.round(team.collectionTotals.cch * dayWeight * 0.25),
+      },
+      raceMembers: team.raceMembers.map((member, index) => ({
+        ...member,
+        score: (member.score + dayOfMonth + index) % 5,
+      })),
+      lapOne: {
+        target: lapOneTarget,
+        achieved: lapOneAchieved,
+        percent: lapOneTarget ? round((lapOneAchieved / lapOneTarget) * 100) : 0,
+      },
+      lapTwo: {
+        target: lapTwoTarget,
+        achieved: lapTwoAchieved,
+        percent: lapTwoTarget ? round((lapTwoAchieved / lapTwoTarget) * 100) : 0,
+      },
+      total: {
+        target: totalTarget,
+        percent: totalTarget ? round((totalAchieved / totalTarget) * 100) : 0,
+      },
+      performers,
+    };
+  });
+  const disbursementLeaders = report.disbursementLeaders.map((performer) => {
+    const target = dailyTarget(performer.target);
+    const achieved = dailyAmount(performer.achieved);
+    return {
+      ...performer,
+      count: Math.round(performer.count * dayWeight * 0.25),
+      target,
+      achieved,
+      percent: target ? round((achieved / target) * 100) : 0,
+    };
+  });
+  const collectionLeaders = report.collectionLeaders.map((leader) => {
+    const monthly = {
+      repay: [...leader.monthly.repay],
+      received: [...leader.monthly.received],
+      collectPercent: [...leader.monthly.collectPercent],
+    };
+    monthly.repay[collectionIndex] = dailyAmount(
+      leader.monthly.repay[collectionIndex]
+    );
+    monthly.received[collectionIndex] = dailyAmount(
+      leader.monthly.received[collectionIndex]
+    );
+    monthly.collectPercent[collectionIndex] = dailyCollectionPercent(
+      leader.monthly.collectPercent[collectionIndex]
+    );
+    return {
+      ...leader,
+      count: Math.round(leader.count * dayWeight * 0.25),
+      monthly,
+    };
+  });
+  const challenges = report.challenges.map((league) => {
+    const toDailyBrand = (brand) => {
+      const target = dailyTarget(brand.target);
+      const achieved = dailyAmount(brand.achieved);
+      return {
+        ...brand,
+        target,
+        achieved,
+        targetPercent: target ? round((achieved / target) * 100) : 0,
+        [collectionField]: dailyCollectionPercent(
+          Number.isFinite(brand[collectionField])
+            ? brand[collectionField]
+            : stableCollectionValue(brand, 0)
+        ),
+      };
+    };
+    return {
+      ...league,
+      total: league.total
+        ? {
+            ...league.total,
+            target: dailyTarget(league.total.target),
+            achieved: dailyAmount(league.total.achieved),
+          }
+        : league.total,
+      brands: league.brands.map(toDailyBrand),
+      additionalBrands: league.additionalBrands?.map(toDailyBrand),
+    };
+  });
+  const achieved = dailyAmount(report.mission.achieved);
+  const target = dailyTarget(report.overall.target);
+  const dailyLabel = `${String(dayOfMonth).padStart(2, "0")} ${report.mission.label.split(" ")[0]} ${report.mission.label.split(" ")[1]}`;
+
+  return {
+    ...report,
+    isStaticSample: true,
+    isDailySample: true,
+    dailyLabel,
+    reportDate: `${dailyLabel} · static daily sample`,
+    currentUsers: Math.round(report.currentUsers * dayWeight),
+    usersToday: Math.round(report.usersToday * dayWeight),
+    mission: {
+      ...report.mission,
+      target: dailyTarget(report.mission.target),
+      achieved,
+      daysElapsed: 1,
+    },
+    overall: {
+      ...report.overall,
+      target,
+      achieved,
+      achievedPercent: target ? round((achieved / target) * 100) : 0,
+    },
+    headToHead: {
+      ...report.headToHead,
+      leaderScore: (report.headToHead.leaderScore + dayOfMonth) % 5,
+      rivalScore: (report.headToHead.rivalScore + dayOfMonth + 1) % 5,
+      days: 1,
+    },
+    teams,
+    disbursementLeaders,
+    collectionLeaders,
+    collectionRaces: report.collectionRaces.map((race, index) => ({
+      ...race,
+      team: race.team.replace(/MONTH|OCTOBER|SEPTEMBER|AUGUST/, "DAILY"),
+      score: (race.score + dayOfMonth + index) % 5,
+      ...(race.rival ? { rivalScore: (race.rivalScore + dayOfMonth) % 5, days: 1 } : {}),
+    })),
+    challenges,
+  };
+}
+
+export function getReportForPeriod(periodId, dayOfMonth = null) {
+  const monthlyReport =
+    periodId === "october" ? REPORT_SNAPSHOT : getStaticHistoricalReport(periodId);
+  if (dayOfMonth == null) return monthlyReport;
+  return getDailyReport(monthlyReport, periodId, dayOfMonth);
+}
+
 export const formatCrore = (value, fractionDigits = 2) =>
   `₹${value.toLocaleString("en-IN", {
     minimumFractionDigits: fractionDigits,
