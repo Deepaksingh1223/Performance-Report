@@ -27,7 +27,9 @@ import {
   FiX,
   FiZap,
 } from "react-icons/fi";
-import { REPORT_SNAPSHOT } from "@/data/performanceReportData";
+import {
+  getReportForPeriod,
+} from "@/data/performanceReportData";
 
 const amount = (value, digits = 2) =>
   `₹${Number(value).toFixed(digits)} Cr`;
@@ -43,6 +45,7 @@ const REPORT_PERIODS = [
     collectionField: "current",
     collectionIndex: 0,
     isCurrentSnapshot: true,
+    availableDays: 4,
   },
   {
     id: "september",
@@ -51,6 +54,7 @@ const REPORT_PERIODS = [
     collectionField: "september",
     collectionIndex: 1,
     isCurrentSnapshot: false,
+    availableDays: 30,
   },
   {
     id: "august",
@@ -59,6 +63,7 @@ const REPORT_PERIODS = [
     collectionField: "august",
     collectionIndex: 2,
     isCurrentSnapshot: false,
+    availableDays: 31,
   },
 ];
 
@@ -105,28 +110,63 @@ function PeriodPicker({ compact = false }) {
     : "border-[#d6e0d8] bg-white text-[#46564b]";
 
   return (
+    <div className="flex min-w-0 items-center gap-1.5">
+      <label
+        className={`inline-flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-1.5 ${containerTone}`}
+      >
+        <FiCalendar
+          className={`size-3.5 shrink-0 ${
+            compact ? "text-[#b4dfc4]" : "text-[#74877a]"
+          }`}
+          aria-hidden="true"
+        />
+        <span className="sr-only">Filter dashboard by reporting month</span>
+        <select
+          value={period.id}
+          onChange={(event) => setPeriodId(event.target.value)}
+          className={`min-w-0 cursor-pointer bg-transparent text-[10px] font-bold text-inherit outline-none [&>option]:bg-white [&>option]:text-[#27342e] ${
+            compact ? "max-w-[120px]" : "max-w-[160px]"
+          }`}
+        >
+          {REPORT_PERIODS.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <DayPicker compact={compact} containerTone={containerTone} />
+    </div>
+  );
+}
+
+function DayPicker({ compact = false, containerTone }) {
+  const { period, selectedDay, setSelectedDay } = useReportPeriod();
+
+  return (
     <label
-      className={`inline-flex min-w-0 items-center gap-2 rounded-xl border px-2.5 py-1.5 ${containerTone}`}
+      className={`inline-flex min-w-0 items-center gap-1.5 rounded-xl border px-2 py-1.5 ${containerTone}`}
     >
-      <FiCalendar
-        className={`size-3.5 shrink-0 ${
-          compact ? "text-[#b4dfc4]" : "text-[#74877a]"
-        }`}
-        aria-hidden="true"
-      />
-      <span className="sr-only">Filter dashboard by reporting month</span>
+      <span className="text-[9px] font-bold text-inherit">Day</span>
+      <span className="sr-only">Filter dashboard by day</span>
       <select
-        value={period.id}
-        onChange={(event) => setPeriodId(event.target.value)}
+        value={selectedDay ?? ""}
+        onChange={(event) =>
+          setSelectedDay(event.target.value ? Number(event.target.value) : null)
+        }
         className={`min-w-0 cursor-pointer bg-transparent text-[10px] font-bold text-inherit outline-none [&>option]:bg-white [&>option]:text-[#27342e] ${
-          compact ? "max-w-[132px]" : "max-w-[160px]"
+          compact ? "max-w-[68px]" : "max-w-[94px]"
         }`}
       >
-        {REPORT_PERIODS.map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.label}
-          </option>
-        ))}
+        <option value="">Full month</option>
+        {Array.from({ length: period.availableDays }, (_, index) => {
+          const day = index + 1;
+          return (
+            <option key={day} value={day}>
+              {String(day).padStart(2, "0")} {period.label.slice(0, 3)}
+            </option>
+          );
+        })}
       </select>
     </label>
   );
@@ -161,10 +201,10 @@ function LeagueIcon({ id, className }) {
 }
 
 function UserTicker() {
-  const { period } = useReportPeriod();
+  const { period, report } = useReportPeriod();
   const repeatedMembers = [
-    ...REPORT_SNAPSHOT.liveMembers,
-    ...REPORT_SNAPSHOT.liveMembers,
+    ...report.liveMembers,
+    ...report.liveMembers,
   ];
 
   return (
@@ -175,14 +215,19 @@ function UserTicker() {
           <>
             RECORDED
             <span className="rounded-full bg-[#173e31]/10 px-1.5 py-0.5 tracking-normal">
-              {REPORT_SNAPSHOT.currentUsers}
+              {report.currentUsers}
             </span>
           </>
         ) : (
-          "ARCHIVE"
+          <>
+            STATIC SAMPLE
+            <span className="rounded-full bg-[#173e31]/10 px-1.5 py-0.5 tracking-normal">
+              {report.currentUsers}
+            </span>
+          </>
         )}
       </div>
-      {period.isCurrentSnapshot ? (
+      {period.isCurrentSnapshot || report.isStaticSample ? (
         <div className="dashboard-marquee flex min-w-0 items-center whitespace-nowrap">
           {repeatedMembers.map((member, index) => (
             <span
@@ -205,7 +250,7 @@ function UserTicker() {
 }
 
 function Header({ onOpenInsights, insightsTriggerRef }) {
-  const { period } = useReportPeriod();
+  const { period, report } = useReportPeriod();
 
   return (
     <header className="relative z-10 bg-[#244540] shadow-[0_8px_24px_rgba(36,69,64,0.12)]">
@@ -220,7 +265,7 @@ function Header({ onOpenInsights, insightsTriggerRef }) {
               SALES PULSE · COLLECTION PERFORMANCE
             </p>
             <h1 className="text-sm font-bold text-white sm:text-base">
-              {period.label} report
+              {report.isDailySample ? report.dailyLabel : period.label} report
             </h1>
           </div>
         </div>
@@ -237,22 +282,14 @@ function Header({ onOpenInsights, insightsTriggerRef }) {
             <span className="hidden sm:inline">Quick insights</span>
             <span className="sm:hidden">Insights</span>
           </button>
-          {period.isCurrentSnapshot ? (
-            <>
-              <span className="hidden items-center gap-1.5 rounded-full bg-[#d5f4e2] px-3 py-2 text-[10px] font-bold text-[#285d42] sm:inline-flex">
-                <FiUsers className="size-3.5" aria-hidden="true" />
-                {REPORT_SNAPSHOT.currentUsers} current users
-              </span>
-              <span className="hidden items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.07] px-3 py-2 text-[10px] font-semibold text-white/85 md:inline-flex">
-                <FiTrendingUp className="size-3.5 text-[#bdd1f4]" aria-hidden="true" />
-                {REPORT_SNAPSHOT.usersToday} users today
-              </span>
-            </>
-          ) : (
-            <span className="hidden rounded-full border border-white/15 bg-white/[0.07] px-3 py-2 text-[10px] font-semibold text-white/85 md:inline-flex">
-              Data as recorded {REPORT_SNAPSHOT.reportDate}
-            </span>
-          )}
+          <span className="hidden items-center gap-1.5 rounded-full bg-[#d5f4e2] px-3 py-2 text-[10px] font-bold text-[#285d42] sm:inline-flex">
+            <FiUsers className="size-3.5" aria-hidden="true" />
+            {report.currentUsers} {period.isCurrentSnapshot ? "current users" : "sample users"}
+          </span>
+          <span className="hidden items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.07] px-3 py-2 text-[10px] font-semibold text-white/85 md:inline-flex">
+            <FiTrendingUp className="size-3.5 text-[#bdd1f4]" aria-hidden="true" />
+            {report.usersToday} {period.isCurrentSnapshot ? "users today" : "monthly activity"}
+          </span>
         </div>
       </div>
     </header>
@@ -287,6 +324,7 @@ function PageHeading({ number, eyebrow, title, detail, id }) {
 }
 
 function LeaguePills() {
+  const { report } = useReportPeriod();
   const leagueStyles = {
     legends: "bg-[#f0ebfc] text-[#7353a3]",
     champions: "bg-[#fff4d6] text-[#8d6a19]",
@@ -296,7 +334,7 @@ function LeaguePills() {
 
   return (
     <div className="flex flex-wrap gap-2">
-      {REPORT_SNAPSHOT.leagues.map((league) => (
+      {report.leagues.map((league) => (
         <span
           key={league.id}
           className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[10px] font-semibold ${
@@ -315,18 +353,8 @@ function LeaguePills() {
 }
 
 function MissionHero() {
-  const { period } = useReportPeriod();
-  if (!period.isCurrentSnapshot) {
-    return (
-      <section className="rounded-[26px] border border-[#e7ebe6] bg-white p-4 shadow-[0_8px_28px_rgba(20,42,34,0.04)] sm:p-6">
-        <PeriodUnavailable
-          title={`Monthly mission · ${period.label}`}
-          detail={`Mission target and achieved totals are available only for the ${REPORT_SNAPSHOT.mission.label} snapshot.`}
-        />
-      </section>
-    );
-  }
-  const { mission } = REPORT_SNAPSHOT;
+  const { period, report } = useReportPeriod();
+  const { mission } = report;
   const progress = Math.min((mission.achieved / mission.target) * 100, 100);
   const daysProgress = (mission.daysElapsed / mission.daysInMonth) * 100;
 
@@ -344,7 +372,7 @@ function MissionHero() {
             </span>
           </div>
           <p className="mt-6 text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#929b96]">
-            Monthly mission
+            {report.isDailySample ? "Daily mission · static sample" : "Monthly mission"}
           </p>
           <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <h2 className="text-[42px] font-bold leading-none tracking-[-0.055em] text-[#172d29] sm:text-6xl">
@@ -380,14 +408,14 @@ function MissionHero() {
         <div className="flex flex-col justify-between bg-[#eff6f1] p-5 sm:p-7 lg:p-6">
           <div>
             <p className="text-[9px] font-extrabold uppercase tracking-[0.18em] text-[#75897d]">
-              Month in progress
+              {report.isDailySample ? "Selected day" : "Month in progress"}
             </p>
             <div className="mt-4 flex items-end gap-2">
               <span className="text-5xl font-bold leading-none tracking-tight text-[#183a30]">
                 {mission.daysElapsed}
               </span>
               <span className="pb-1 text-[11px] font-semibold text-[#708278]">
-                / {mission.daysInMonth} days elapsed
+                / {report.isDailySample ? "1 day selected" : `${mission.daysInMonth} days elapsed`}
               </span>
             </div>
           </div>
@@ -410,24 +438,8 @@ function MissionHero() {
 }
 
 function Overview() {
-  const { period } = useReportPeriod();
-  if (!period.isCurrentSnapshot) {
-    return (
-      <section className="space-y-3">
-        <PageHeading
-          number="01"
-          eyebrow="At a glance"
-          title="Collection health"
-          detail="This report section only has the October 2026 snapshot."
-        />
-        <PeriodUnavailable
-          title={`Collection health · ${period.label}`}
-          detail="Company target, achieved MTD, milestone targets and league counts are not recorded for this month."
-        />
-      </section>
-    );
-  }
-  const { overall } = REPORT_SNAPSHOT;
+  const { period, report } = useReportPeriod();
+  const { overall } = report;
   const stats = [
     {
       label: "Total target",
@@ -487,7 +499,7 @@ function Overview() {
             </span>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {REPORT_SNAPSHOT.minimumTargets.map((target) => (
+            {report.minimumTargets.map((target) => (
               <div
                 key={target.milestone}
                 className="flex items-center justify-between gap-2 rounded-xl bg-[#f7f8f6] px-3 py-3"
@@ -535,7 +547,7 @@ function Overview() {
       </div>
       <div className="flex flex-col gap-3 rounded-[18px] border border-[#e8ebe6] bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <span className="text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#818b85]">
-          League counts · recorded snapshot
+          League counts · {period.label}
         </span>
         <LeaguePills />
       </div>
@@ -587,7 +599,8 @@ function MatchScore({ left, right, days }) {
 
 function LapProgress({ team, index }) {
   const color = index === 0 ? "#6188d4" : "#34a77a";
-  const isLeader = team.score === Math.max(...REPORT_SNAPSHOT.teams.map((entry) => entry.score));
+  const { report } = useReportPeriod();
+  const isLeader = team.score === Math.max(...report.teams.map((entry) => entry.score));
   const laps = [
     {
       label: "Lap 1 · target",
@@ -813,23 +826,7 @@ function TeamLeadershipCard({ team, index }) {
 }
 
 function TeamRace() {
-  const { period } = useReportPeriod();
-  if (!period.isCurrentSnapshot) {
-    return (
-      <section id="team-race" className="scroll-mt-48 space-y-3">
-        <PageHeading
-          number="02"
-          eyebrow="Friendly competition"
-          title="Team lap race"
-          detail="Team score, lap targets and collection progress."
-        />
-        <PeriodUnavailable
-          title={`Team lap race · ${period.label}`}
-          detail="Team scores, targets and member race points are available only in the October 2026 snapshot."
-        />
-      </section>
-    );
-  }
+  const { report } = useReportPeriod();
   return (
     <section id="team-race" className="scroll-mt-48 space-y-3">
       <PageHeading
@@ -840,17 +837,17 @@ function TeamRace() {
       />
       <MatchScore
         left={{
-          name: REPORT_SNAPSHOT.headToHead.leader,
-          score: REPORT_SNAPSHOT.headToHead.leaderScore,
+          name: report.headToHead.leader,
+          score: report.headToHead.leaderScore,
         }}
         right={{
-          name: REPORT_SNAPSHOT.headToHead.rival,
-          score: REPORT_SNAPSHOT.headToHead.rivalScore,
+          name: report.headToHead.rival,
+          score: report.headToHead.rivalScore,
         }}
-        days={REPORT_SNAPSHOT.headToHead.days}
+        days={report.headToHead.days}
       />
       <div className="grid gap-3 xl:grid-cols-2">
-        {REPORT_SNAPSHOT.teams.map((team, index) => (
+        {report.teams.map((team, index) => (
           <TeamLeadershipCard key={team.id} team={team} index={index} />
         ))}
       </div>
@@ -862,13 +859,13 @@ function TeamRace() {
           </h3>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {REPORT_SNAPSHOT.disbursementLeaders.map((performer, index) => (
+          {report.disbursementLeaders.map((performer, index) => (
             <PerformerCard
               key={performer.name}
               performer={performer}
               index={index}
               tier={performanceTier(
-                REPORT_SNAPSHOT.disbursementLeaders,
+                report.disbursementLeaders,
                 performer,
                 "percent"
               )}
@@ -877,7 +874,7 @@ function TeamRace() {
         </div>
       </div>
       <div className="grid gap-3 xl:grid-cols-2">
-        {REPORT_SNAPSHOT.teams.map((team, index) => (
+        {report.teams.map((team, index) => (
           <LapProgress key={team.id} team={team} index={index} />
         ))}
       </div>
@@ -985,23 +982,7 @@ function PerformerCard({ performer, index, groupLabel, tier }) {
 }
 
 function TeamPerformers() {
-  const { period } = useReportPeriod();
-  if (!period.isCurrentSnapshot) {
-    return (
-      <section id="performers" className="scroll-mt-48 space-y-3">
-        <PageHeading
-          number="03"
-          eyebrow="Team collection performers"
-          title="Team members & collection"
-          detail="Team-wise members, visible brand percentages, targets and achieved totals."
-        />
-        <PeriodUnavailable
-          title={`Team performers · ${period.label}`}
-          detail="Team performer targets and achieved totals are available only in the October 2026 snapshot."
-        />
-      </section>
-    );
-  }
+  const { report } = useReportPeriod();
   return (
     <section id="performers" className="scroll-mt-48 space-y-3">
       <PageHeading
@@ -1011,7 +992,7 @@ function TeamPerformers() {
         detail="Team-wise members, their visible brand percentages, targets and achieved totals."
       />
       <div className="grid gap-4 xl:grid-cols-2">
-        {REPORT_SNAPSHOT.teams.map((team, teamIndex) => (
+        {report.teams.map((team, teamIndex) => (
           <div
             key={team.id}
             className="rounded-[22px] border border-[#e5ebe4] bg-white/65 p-3.5 sm:p-4"
@@ -1073,6 +1054,7 @@ function MonthMetrics({ value, label, color }) {
 }
 
 function CollectionPersonCard({ leader, index, tier, period }) {
+  const { report } = useReportPeriod();
   const monthIndex = period.collectionIndex;
   const achievement = leader.monthly.collectPercent[monthIndex];
   const rows = [
@@ -1134,7 +1116,7 @@ function CollectionPersonCard({ leader, index, tier, period }) {
         </div>
       )}
       <p className="mb-1 px-2.5 text-[8px] font-extrabold tracking-wide text-[#a0a8a2]">
-        {period.label.toUpperCase()}
+        {(report.dailyLabel ?? period.label).toUpperCase()}
       </p>
       <div className="space-y-1.5">
         {rows.map((row) => (
@@ -1151,8 +1133,8 @@ function CollectionPersonCard({ leader, index, tier, period }) {
 }
 
 function CollectionReport() {
-  const { period } = useReportPeriod();
-  const { collectionRaces, collectionLeaders } = REPORT_SNAPSHOT;
+  const { period, report, selectedDay } = useReportPeriod();
+  const { collectionRaces, collectionLeaders } = report;
   const sortedLeaders = [...collectionLeaders].sort(
     (first, second) =>
       second.monthly.collectPercent[period.collectionIndex] -
@@ -1165,37 +1147,34 @@ function CollectionReport() {
         number="04"
         eyebrow="Repayment · received · collection"
         title={
-          period.isCurrentSnapshot
+          selectedDay
+            ? `${report.dailyLabel} collection report`
+            : period.isCurrentSnapshot
             ? "3-month collection report"
             : `${period.label} collection report`
         }
         detail={
-          period.isCurrentSnapshot
+          selectedDay
+            ? `Repayment, received amount and collection percentage for the static daily sample on ${report.dailyLabel}.`
+            : period.isCurrentSnapshot
             ? "CBH and CCH race, followed by performer-level October, September and August results."
             : `Repayment, received amount and collection percentage for ${period.label}.`
         }
       />
-      {period.isCurrentSnapshot ? (
-        <div className="grid gap-2.5 xl:grid-cols-2">
-          {collectionRaces.map((race) =>
-            race.rival ? (
-              <MatchScore
-                key={race.id}
-                left={{ name: race.leader, score: race.score }}
-                right={{ name: race.rival, score: race.rivalScore }}
-                days={race.days}
-              />
-            ) : (
-              <LeaderScore key={race.id} race={race} />
-            )
-          )}
-        </div>
-      ) : (
-        <PeriodUnavailable
-          title={`Collection race · ${period.label}`}
-          detail="The CBH/CCH race scores are a combined three-month result, not a month-specific score."
-        />
-      )}
+      <div className="grid gap-2.5 xl:grid-cols-2">
+        {collectionRaces.map((race) =>
+          race.rival ? (
+            <MatchScore
+              key={race.id}
+              left={{ name: race.leader, score: race.score }}
+              right={{ name: race.rival, score: race.rivalScore }}
+              days={race.days}
+            />
+          ) : (
+            <LeaderScore key={race.id} race={race} />
+          )
+        )}
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
         {sortedLeaders.map((leader, index) => (
           <CollectionPersonCard
@@ -1230,6 +1209,7 @@ function RewardStrip({ league }) {
 }
 
 function ChallengePodium({ league, brands, period }) {
+  const { selectedDay } = useReportPeriod();
   const [second, first, third] = [brands[1], brands[0], brands[2]];
   const places = [
     {
@@ -1268,7 +1248,7 @@ function ChallengePodium({ league, brands, period }) {
           <p className="mt-2 truncate text-[10px] font-bold text-[#303a34]">
             {place.brand?.name ?? "—"}
           </p>
-          {place.brand && period.isCurrentSnapshot && (
+          {place.brand && period.isCurrentSnapshot && !selectedDay && (
             <>
               <p className="mt-2 text-xs font-bold text-[#29825d]">
                 {amount(place.brand.achieved)}
@@ -1278,7 +1258,7 @@ function ChallengePodium({ league, brands, period }) {
               </p>
             </>
           )}
-          {place.brand && !period.isCurrentSnapshot && (
+          {place.brand && (!period.isCurrentSnapshot || selectedDay) && (
             <p className="mt-2 text-xs font-bold text-[#29825d]">
               Collection {percent(place.brand[period.collectionField])}
             </p>
@@ -1301,8 +1281,8 @@ const tableHeadings = [
 ];
 
 function BrandTable({ league }) {
-  const { period } = useReportPeriod();
-  const isHistorical = !period.isCurrentSnapshot;
+  const { period, report, selectedDay } = useReportPeriod();
+  const isHistorical = !period.isCurrentSnapshot || selectedDay != null;
   const brands = useMemo(
     () =>
       [
@@ -1393,7 +1373,11 @@ function BrandTable({ league }) {
   );
   const hasActiveFilters = Boolean(normalizedSearch) || filter !== "all";
   const headings = isHistorical
-    ? ["Rank", "Brand", `Collection · ${period.collectionLabel}`]
+    ? [
+        "Rank",
+        "Brand",
+        `Collection · ${report.dailyLabel ?? period.collectionLabel}`,
+      ]
     : tableHeadings;
 
   return (
@@ -1614,7 +1598,7 @@ function BrandTable({ league }) {
       </div>
       <p className="border-t border-[#dce5de] px-3 py-2.5 text-[9px] leading-relaxed text-[#8a938d]">
         {isHistorical
-          ? `${rankedBrands.length} brands have recorded ${period.collectionLabel} collection data. Rows are ranked by the selected month; other month-specific league metrics were not provided.`
+          ? `${rankedBrands.length} brands are ranked by ${report.dailyLabel ?? period.collectionLabel} collection results.${report.isStaticSample ? " Static demo values." : ""}`
           : league.id === "survivors"
             ? `All ${brands.length} Survivors rows are transcribed from the supplied recording. Cells shown as — were marked N/A in the recorded report.`
             : `All ${league.brands.length} brand rows readable in the recording.`}
@@ -1624,7 +1608,7 @@ function BrandTable({ league }) {
 }
 
 function ChallengeCard({ league }) {
-  const { period } = useReportPeriod();
+  const { period, report, selectedDay } = useReportPeriod();
   const accent = {
     legends: {
       line: "border-l-[#9271bc]",
@@ -1647,7 +1631,8 @@ function ChallengeCard({ league }) {
     ...league.brands,
     ...(league.additionalBrands ?? []),
   ];
-  const rankedBrands = period.isCurrentSnapshot
+  const isMonthlyCurrent = period.isCurrentSnapshot && !selectedDay;
+  const rankedBrands = isMonthlyCurrent
     ? [...allBrands].sort((first, second) => first.rank - second.rank)
     : allBrands
         .filter((brand) =>
@@ -1680,13 +1665,13 @@ function ChallengeCard({ league }) {
           </div>
         </div>
         <span className="rounded-full bg-[#f4f5f2] px-3 py-1.5 text-[9px] font-bold text-[#778179]">
-          {period.isCurrentSnapshot ? league.count : rankedBrands.length} brands
+          {isMonthlyCurrent ? league.count : rankedBrands.length} brands
         </span>
       </div>
       <div className="mt-4">
         <RewardStrip league={league} />
       </div>
-      {period.isCurrentSnapshot && league.locked ? (
+      {isMonthlyCurrent && league.locked ? (
         <div className="mt-3 flex min-h-[180px] flex-col items-center justify-center rounded-2xl border border-dashed border-[#dfe5e0] bg-[#f7f8f6] px-4 text-center">
           <span className="flex size-11 items-center justify-center rounded-2xl bg-white text-[#79929a] shadow-sm">
             <FiLock className="size-5" aria-hidden="true" />
@@ -1698,11 +1683,11 @@ function ChallengeCard({ league }) {
             No brand has reached this tier yet.
           </p>
         </div>
-      ) : !period.isCurrentSnapshot && rankedBrands.length === 0 ? (
+      ) : !isMonthlyCurrent && rankedBrands.length === 0 ? (
         <div className="mt-3">
           <PeriodUnavailable
             title={`${league.title} · ${period.label}`}
-            detail={`This recording has no ${period.collectionLabel} brand collection rows for this league.`}
+            detail={`This report has no ${report.dailyLabel ?? period.collectionLabel} brand collection rows for this league.`}
           />
         </div>
       ) : (
@@ -1722,7 +1707,7 @@ function ChallengeCard({ league }) {
 }
 
 function LeagueStandings() {
-  const { period } = useReportPeriod();
+  const { period, report, selectedDay } = useReportPeriod();
   return (
     <section id="leagues" className="scroll-mt-48 space-y-3">
       <PageHeading
@@ -1730,9 +1715,11 @@ function LeagueStandings() {
         eyebrow="Monthly challenge · awards"
         title="League standings & rewards"
         detail={
-          period.isCurrentSnapshot
-            ? "Podium brands, collection rankings and royalty for each collection tier."
-            : `Brand rankings are recalculated using recorded ${period.collectionLabel} collection percentages.`
+            selectedDay
+              ? `Day-by-day static sample for ${report.dailyLabel}; monthly source values are apportioned across the selected date.`
+              : period.isCurrentSnapshot
+              ? "Podium brands, collection rankings and royalty for each collection tier."
+              : `Brand rankings are recalculated using recorded ${period.collectionLabel} collection percentages.`
         }
       />
       <div className="mb-3 flex items-start gap-3 rounded-[18px] border border-[#e7eae5] bg-white px-4 py-3 text-[10px] text-[#737e77]">
@@ -1745,7 +1732,7 @@ function LeagueStandings() {
         </p>
       </div>
       <div className="league-card-grid grid min-w-0 gap-3 xl:grid-cols-2">
-        {REPORT_SNAPSHOT.challenges.map((league) => (
+        {report.challenges.map((league) => (
           <div
             key={league.id}
             className={`min-w-0 ${
@@ -1785,22 +1772,22 @@ function InsightMetric({ label, value, detail, icon: Icon, tone }) {
 }
 
 function InsightsDialog({ onClose }) {
-  const { period, setPeriodId } = useReportPeriod();
+  const { period, report } = useReportPeriod();
   const dialogRef = useRef(null);
-  const disbursementLeaders = REPORT_SNAPSHOT.disbursementLeaders;
+  const disbursementLeaders = report.disbursementLeaders;
   const bestDisbursement = [...disbursementLeaders].sort(
     (first, second) => second.percent - first.percent
   )[0];
   const lowestDisbursement = [...disbursementLeaders].sort(
     (first, second) => first.percent - second.percent
   )[0];
-  const bestTeam = [...REPORT_SNAPSHOT.teams].sort(
+  const bestTeam = [...report.teams].sort(
     (first, second) => second.total.percent - first.total.percent
   )[0];
-  const lowestTeam = [...REPORT_SNAPSHOT.teams].sort(
+  const lowestTeam = [...report.teams].sort(
     (first, second) => first.total.percent - second.total.percent
   )[0];
-  const sortedCollectionLeaders = [...REPORT_SNAPSHOT.collectionLeaders].sort(
+  const sortedCollectionLeaders = [...report.collectionLeaders].sort(
     (first, second) =>
       second.monthly.collectPercent[period.collectionIndex] -
       first.monthly.collectPercent[period.collectionIndex]
@@ -1808,7 +1795,7 @@ function InsightsDialog({ onClose }) {
   const bestCollectionLeader = sortedCollectionLeaders[0];
   const lowestCollectionLeader =
     sortedCollectionLeaders[sortedCollectionLeaders.length - 1];
-  const rankedBrands = REPORT_SNAPSHOT.challenges
+  const rankedBrands = report.challenges
     .flatMap((league) =>
       [...league.brands, ...(league.additionalBrands ?? [])]
         .filter((brand) =>
@@ -1926,85 +1913,40 @@ function InsightsDialog({ onClose }) {
             <span className="text-[9px] font-bold uppercase tracking-wide text-[#718078]">
               Filter all dashboard data
             </span>
-            <label className="inline-flex min-w-0 items-center gap-2 rounded-xl border border-[#d6e0d8] bg-white px-2.5 py-1.5 text-[#46564b]">
-              <FiCalendar
-                className="size-3.5 shrink-0 text-[#74877a]"
-                aria-hidden="true"
-              />
-              <span className="sr-only">Filter dashboard by reporting month</span>
-              <select
-                value={period.id}
-                onChange={(event) => setPeriodId(event.target.value)}
-                className="min-w-0 max-w-[160px] cursor-pointer bg-transparent text-[10px] font-bold text-inherit outline-none [&>option]:bg-white [&>option]:text-[#27342e]"
-              >
-                {REPORT_PERIODS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <PeriodPicker />
           </div>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <InsightMetric
               label="Achieved MTD"
-              value={
-                period.isCurrentSnapshot
-                  ? amount(REPORT_SNAPSHOT.mission.achieved)
-                  : "Unavailable"
-              }
-              detail={
-                period.isCurrentSnapshot
-                  ? `${percent(REPORT_SNAPSHOT.overall.achievedPercent)} of overall target`
-                  : `No achieved MTD data for ${period.label}`
-              }
+              value={amount(report.mission.achieved)}
+              detail={`${percent(report.overall.achievedPercent)} of overall target`}
               icon={FiDollarSign}
               tone="green"
             />
             <InsightMetric
               label="Target"
-              value={
-                period.isCurrentSnapshot
-                  ? amount(REPORT_SNAPSHOT.overall.target, 0)
-                  : "Unavailable"
-              }
-              detail={
-                period.isCurrentSnapshot
-                  ? `${REPORT_SNAPSHOT.mission.daysElapsed} of ${REPORT_SNAPSHOT.mission.daysInMonth} days elapsed`
-                  : `No company target recorded for ${period.label}`
-              }
+              value={amount(report.overall.target, 0)}
+              detail={`${report.mission.daysElapsed} of ${report.mission.daysInMonth} days elapsed`}
               icon={FiTarget}
               tone="blue"
             />
             <InsightMetric
               label="Users today"
-              value={
-                period.isCurrentSnapshot
-                  ? REPORT_SNAPSHOT.usersToday
-                  : "Unavailable"
-              }
-              detail={
-                period.isCurrentSnapshot
-                  ? `${REPORT_SNAPSHOT.currentUsers} currently recorded`
-                  : `No user activity history for ${period.label}`
-              }
+              value={report.usersToday}
+              detail={`${report.currentUsers} currently recorded`}
               icon={FiUsers}
               tone="amber"
             />
             <InsightMetric
               label="League brands"
-              value={
-                period.isCurrentSnapshot
-                  ? REPORT_SNAPSHOT.leagues.reduce(
-                      (total, league) => total + league.count,
-                      0
-                    )
-                  : rankedBrands.length
-              }
+              value={report.leagues.reduce(
+                (total, league) => total + league.count,
+                0
+              )}
               detail={
-                period.isCurrentSnapshot
-                  ? "Across all recorded tiers"
-                  : `Brands with ${period.collectionLabel} data`
+                report.isStaticSample
+                  ? `Static sample for ${period.label}`
+                  : "Across all recorded tiers"
               }
               icon={FiAward}
               tone="rose"
@@ -2021,61 +1963,29 @@ function InsightsDialog({ onClose }) {
             <div className="grid gap-2 sm:grid-cols-2">
               <InsightMetric
                 label="Top disbursement performer"
-                value={
-                  period.isCurrentSnapshot
-                    ? bestDisbursement.name
-                    : "Unavailable"
-                }
-                detail={
-                  period.isCurrentSnapshot
-                    ? `${percent(bestDisbursement.percent)} target progress · ${amount(bestDisbursement.achieved)} achieved`
-                    : `No disbursement history for ${period.label}`
-                }
+                value={bestDisbursement.name}
+                detail={`${percent(bestDisbursement.percent)} target progress · ${amount(bestDisbursement.achieved)} achieved`}
                 icon={FiTrendingUp}
                 tone="green"
               />
               <InsightMetric
                 label="Needs attention"
-                value={
-                  period.isCurrentSnapshot
-                    ? lowestDisbursement.name
-                    : "Unavailable"
-                }
-                detail={
-                  period.isCurrentSnapshot
-                    ? `${percent(lowestDisbursement.percent)} target progress · lowest in this group`
-                    : `No disbursement history for ${period.label}`
-                }
+                value={lowestDisbursement.name}
+                detail={`${percent(lowestDisbursement.percent)} target progress · lowest in this group`}
                 icon={FiActivity}
                 tone="rose"
               />
               <InsightMetric
                 label="Leading team"
-                value={
-                  period.isCurrentSnapshot
-                    ? bestTeam.name.replace("TEAM ", "")
-                    : "Unavailable"
-                }
-                detail={
-                  period.isCurrentSnapshot
-                    ? `${percent(bestTeam.total.percent)} overall target progress`
-                    : `No team target history for ${period.label}`
-                }
+                value={bestTeam.name.replace("TEAM ", "")}
+                detail={`${percent(bestTeam.total.percent)} overall target progress`}
                 icon={FiAward}
                 tone="blue"
               />
               <InsightMetric
                 label="Team to catch up"
-                value={
-                  period.isCurrentSnapshot
-                    ? lowestTeam.name.replace("TEAM ", "")
-                    : "Unavailable"
-                }
-                detail={
-                  period.isCurrentSnapshot
-                    ? `${percent(lowestTeam.total.percent)} overall target progress`
-                    : `No team target history for ${period.label}`
-                }
+                value={lowestTeam.name.replace("TEAM ", "")}
+                detail={`${percent(lowestTeam.total.percent)} overall target progress`}
                 icon={FiUsers}
                 tone="rose"
               />
@@ -2094,19 +2004,11 @@ function InsightsDialog({ onClose }) {
                 tone="rose"
               />
               <InsightMetric
-                label={
-                  period.isCurrentSnapshot
-                    ? "Top brand · target progress"
-                    : "Top brand · collection"
-                }
+                label="Top brand · collection"
                 value={topBrand?.name ?? "No brand data"}
                 detail={
                   topBrand
-                    ? `${percent(
-                        period.isCurrentSnapshot
-                          ? topBrand.targetPercent
-                          : topBrand[period.collectionField]
-                      )} · ${topBrand.league}`
+                    ? `${percent(topBrand[period.collectionField])} · ${topBrand.league}`
                     : "No ranked brands in this snapshot"
                 }
                 icon={FiStar}
@@ -2114,9 +2016,9 @@ function InsightsDialog({ onClose }) {
               />
             </div>
             <p className="mt-2 text-[9px] leading-relaxed text-[#89948c]">
-              {period.isCurrentSnapshot
-                ? "“Needs attention” is the lowest target progress in the recorded disbursement group, not a live alert."
-                : `Team targets, mission totals, user activity and disbursement figures have no recorded ${period.label} history.`}
+              {report.isStaticSample
+                ? "September and August figures are static demo values; replace them with verified report data when available."
+                : "“Needs attention” is the lowest target progress in the recorded disbursement group, not a live alert."}
             </p>
           </div>
 
@@ -2144,9 +2046,9 @@ function InsightsDialog({ onClose }) {
             </button>
           </div>
           <p className="text-[9px] text-[#929b95]">
-            {period.isCurrentSnapshot
-              ? "Recorded snapshot · live data source is not connected."
-              : `Historical collection values are from ${period.collectionLabel}; unavailable measures are not estimated.`}
+            {report.isStaticSample
+              ? `Static demo data for ${period.label}; replace with verified report values when available.`
+              : "Recorded snapshot · live data source is not connected."}
           </p>
         </div>
       </section>
@@ -2155,17 +2057,17 @@ function InsightsDialog({ onClose }) {
 }
 
 function Footer() {
-  const { period } = useReportPeriod();
+  const { period, report } = useReportPeriod();
   return (
     <footer className="flex flex-col gap-2 border-t border-[#e4e8e2] py-4 text-[10px] leading-relaxed text-[#818c85] sm:flex-row sm:items-center sm:justify-between">
       <span className="inline-flex items-center gap-2">
         <FiShield className="size-3.5 text-[#78907e]" aria-hidden="true" />
-        Recording snapshot · {REPORT_SNAPSHOT.reportDate}
+        {report.isStaticSample ? "Static sample data" : `Recording snapshot · ${report.reportDate}`}
       </span>
       <span>
-        {period.isCurrentSnapshot
-          ? "Figures are transcribed from the supplied recording. Live data requires the original authenticated report source."
-          : `Showing recorded ${period.collectionLabel} collection history where available; other sections require historical source data.`}
+        {report.isStaticSample
+          ? `All ${period.label} figures are static demo values; collection percentages use the supplied historical rows where available.`
+          : "Figures are transcribed from the supplied recording. Live data requires the original authenticated report source."}
       </span>
     </footer>
   );
@@ -2173,12 +2075,14 @@ function Footer() {
 
 export default function PerformanceDashboard() {
   const [selectedPeriodId, setSelectedPeriodId] = useState("october");
+  const [selectedDay, setSelectedDay] = useState(null);
   const [isInsightsOpen, setIsInsightsOpen] = useState(true);
   const insightsTriggerRef = useRef(null);
   const wasInsightsOpenRef = useRef(false);
   const period =
     REPORT_PERIODS.find((option) => option.id === selectedPeriodId) ??
     REPORT_PERIODS[0];
+  const report = getReportForPeriod(period.id, selectedDay);
 
   useEffect(() => {
     if (!isInsightsOpen && wasInsightsOpenRef.current) {
@@ -2195,10 +2099,14 @@ export default function PerformanceDashboard() {
     <ReportPeriodContext.Provider
       value={{
         period,
+        selectedDay,
+        report,
         setPeriodId: (periodId) => {
           setSelectedPeriodId(periodId);
+          setSelectedDay(null);
           setIsInsightsOpen(false);
         },
+        setSelectedDay,
       }}
     >
     <div className="min-h-screen bg-[#f4f6f2] text-[#27342e]">
@@ -2214,14 +2122,18 @@ export default function PerformanceDashboard() {
                 SALES &amp; COLLECTIONS · MONTHLY REPORT
               </p>
               <h2 className="mt-1 text-xl font-bold tracking-tight text-[#1f3029] sm:text-2xl">
-                {period.label} performance overview
+                {selectedDay
+                  ? `${period.label} · ${String(selectedDay).padStart(2, "0")} ${period.label.slice(0, 3)} performance`
+                  : `${period.label} performance overview`}
               </h2>
             </div>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ecdcbf] bg-[#fff9ee] px-3 py-1.5 text-[9px] font-semibold text-[#92703b]">
               <FiRadio className="size-3" aria-hidden="true" />
-              {period.isCurrentSnapshot
-                ? `Recorded snapshot · ${REPORT_SNAPSHOT.reportDate}`
-                : `Historical filter · ${period.collectionLabel}`}
+              {report.isDailySample
+                ? `Static daily sample · ${report.dailyLabel}`
+                : report.isStaticSample
+                ? `Static sample · ${period.collectionLabel}`
+                : `Recorded snapshot · ${report.reportDate}`}
             </span>
           </div>
           <MissionHero />
